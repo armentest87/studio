@@ -89,6 +89,8 @@ export const Icons = {
   lifeBuoy: LifeBuoy,
   login: LogIn,
   logout: FileOutput,
+  checkCircle2: CheckCircle2, // Added mapping
+  alertTriangle: AlertTriangle, // Added mapping
 };
 
 export type IconName = keyof typeof Icons;
