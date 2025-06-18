@@ -85,12 +85,13 @@ export const Icons = {
   filter: Filter,
   percent: Percent,
   lineChart: LineChart,
+  users: Users, // Added mapping for users icon
   github: Github,
   lifeBuoy: LifeBuoy,
   login: LogIn,
   logout: FileOutput,
-  checkCircle2: CheckCircle2, // Added mapping
-  alertTriangle: AlertTriangle, // Added mapping
+  checkCircle2: CheckCircle2,
+  alertTriangle: AlertTriangle,
 };
 
 export type IconName = keyof typeof Icons;
