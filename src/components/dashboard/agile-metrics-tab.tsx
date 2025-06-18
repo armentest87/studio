@@ -4,7 +4,7 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Icons } from '@/components/icons';
 
 const chartConfig = {
@@ -19,6 +19,7 @@ const chartConfig = {
   leadTime: { label: "Lead Time (days)", color: "hsl(var(--chart-1))" },
   cycleTime: { label: "Cycle Time (days)", color: "hsl(var(--chart-2))" },
   hours: { label: "Hours", color: "hsl(var(--chart-1))" },
+  velocity: { label: "Velocity", color: "hsl(var(--chart-1))" }, // Added for rolling velocity
 };
 
 const velocityData = [
@@ -87,7 +88,7 @@ const timeInStatusData = [
 ];
 
 
-const renderChart = (data: any[], dataKey: string, xAxisKey: string, title: string, description: string, icon: React.ElementType) => (
+const renderChart = (data: any[], dataKey: string, xAxisKey: string, title: string, description: string, icon: React.ElementType, chartColorKey: keyof typeof chartConfig = "storyPoints") => (
   <Card>
     <CardHeader>
       <div className="flex items-center gap-2">
@@ -104,7 +105,7 @@ const renderChart = (data: any[], dataKey: string, xAxisKey: string, title: stri
           <YAxis tickLine={false} axisLine={false} tickMargin={8} />
           <Tooltip content={<ChartTooltipContent />} />
           <Legend content={<ChartLegendContent />} />
-          <Bar dataKey={dataKey} fill="var(--color-storyPoints)" radius={4} />
+          <Bar dataKey={dataKey} fill={`var(--color-${chartColorKey})`} radius={4} />
         </BarChart>
       </ChartContainer>
     </CardContent>
@@ -129,7 +130,7 @@ export function AgileMetricsTab() {
       </TabsList>
 
       <TabsContent value="velocity" className="mt-4">
-        {renderChart(velocityData, "storyPoints", "sprint", "Velocity", "Story points completed per sprint.", Icons.velocity)}
+        {renderChart(velocityData, "storyPoints", "sprint", "Velocity", "Story points completed per sprint.", Icons.velocity, "storyPoints")}
       </TabsContent>
       <TabsContent value="burndown" className="mt-4">
          <Card>
@@ -156,10 +157,10 @@ export function AgileMetricsTab() {
         </Card>
       </TabsContent>
       <TabsContent value="cycleTime" className="mt-4">
-        {renderChart(cycleTimeData, "days", "task", "Cycle Time", "Time taken to complete tasks from start to finish.", Icons.cycleTime)}
+        {renderChart(cycleTimeData, "days", "task", "Cycle Time", "Time taken to complete tasks from start to finish.", Icons.cycleTime, "days")}
       </TabsContent>
       <TabsContent value="throughput" className="mt-4">
-        {renderChart(throughputData, "issues", "week", "Throughput", "Number of issues completed per week.", Icons.throughput)}
+        {renderChart(throughputData, "issues", "week", "Throughput", "Number of issues completed per week.", Icons.throughput, "issues")}
       </TabsContent>
        <TabsContent value="sprintCommitment" className="mt-4">
         <Card>
@@ -186,7 +187,7 @@ export function AgileMetricsTab() {
         </Card>
       </TabsContent>
       <TabsContent value="rollingVelocity" className="mt-4">
-        {renderChart(rollingVelocityData, "velocity", "period", "Rolling Velocity", "Average velocity over several past sprints.", Icons.rollingVelocity)}
+        {renderChart(rollingVelocityData, "velocity", "period", "Rolling Velocity", "Average velocity over several past sprints.", Icons.rollingVelocity, "velocity")}
       </TabsContent>
       <TabsContent value="scopeChange" className="mt-4">
          <Card>
@@ -213,15 +214,17 @@ export function AgileMetricsTab() {
         </Card>
       </TabsContent>
       <TabsContent value="leadTime" className="mt-4">
-        {renderChart(leadTimeData, "days", "feature", "Lead Time", "Total time from idea to delivery for features.", Icons.leadTime)}
+        {renderChart(leadTimeData, "days", "feature", "Lead Time", "Total time from idea to delivery for features.", Icons.leadTime, "leadTime")}
       </TabsContent>
       <TabsContent value="workingHours" className="mt-4">
-        {renderChart(workingHoursData, "hours", "day", "Working Hours", "Logged working hours per day.", Icons.workingHours)}
+        {renderChart(workingHoursData, "hours", "day", "Working Hours", "Logged working hours per day.", Icons.workingHours, "hours")}
       </TabsContent>
       <TabsContent value="timeInStatus" className="mt-4">
-        {renderChart(timeInStatusData, "days", "status", "Time in Status", "Average time issues spend in each status.", Icons.timeInStatus)}
+        {renderChart(timeInStatusData, "days", "status", "Time in Status", "Average time issues spend in each status.", Icons.timeInStatus, "days")}
       </TabsContent>
     </Tabs>
     </div>
   );
 }
+
+    
