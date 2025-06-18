@@ -1,7 +1,9 @@
+
 "use client"
 
 import * as React from "react"
-import * as RechartsPrimitive from "recharts"
+// import * as RechartsPrimitive from "recharts" // Old import
+import { ResponsiveContainer, Tooltip as RechartsTooltip, Legend as RechartsLegend } from "recharts" // New import
 
 import { cn } from "@/lib/utils"
 
@@ -39,7 +41,7 @@ const ChartContainer = React.forwardRef<
   React.ComponentProps<"div"> & {
     config: ChartConfig
     children: React.ComponentProps<
-      typeof RechartsPrimitive.ResponsiveContainer
+      typeof ResponsiveContainer // Updated to use direct import
     >["children"]
   }
 >(({ id, className, children, config, ...props }, ref) => {
@@ -58,9 +60,9 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <ResponsiveContainer> {/* Updated to use direct import */}
           {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        </ResponsiveContainer>
       </div>
     </ChartContext.Provider>
   )
@@ -100,11 +102,11 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+const ChartTooltip = RechartsTooltip // Use the aliased import
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
+  React.ComponentProps<typeof RechartsTooltip> & // Updated to use aliased import
     React.ComponentProps<"div"> & {
       hideLabel?: boolean
       hideIndicator?: boolean
@@ -256,12 +258,12 @@ const ChartTooltipContent = React.forwardRef<
 )
 ChartTooltipContent.displayName = "ChartTooltip"
 
-const ChartLegend = RechartsPrimitive.Legend
+const ChartLegend = RechartsLegend // Use the aliased import
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+    Pick<React.ComponentProps<typeof RechartsLegend>, "payload" | "verticalAlign"> & { // Updated to use aliased import
       hideIcon?: boolean
       nameKey?: string
     }
