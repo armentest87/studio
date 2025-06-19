@@ -37,7 +37,8 @@ import {
   Projector,
   UserCircle2,
   LineChart,
-  Loader2, // Added Loader2 for loading spinner
+  Loader2,
+  Bug, // Added Bug icon
 } from 'lucide-react';
 
 export const Icons = {
@@ -58,10 +59,10 @@ export const Icons = {
   ),
   dashboard: LayoutDashboard,
   agile: BarChart3,
-  team: Users, // Retains Users as team for existing dashboard layout
-  users: Users, // Adds specific 'users' for UserWorkloadReportTab
-  quality: AlertTriangle, // Retains AlertTriangle as quality
-  alertTriangle: AlertTriangle, // Adds specific 'alertTriangle' for OverviewTab
+  team: Users, 
+  users: Users, 
+  quality: AlertTriangle, 
+  alertTriangle: AlertTriangle, 
   custom: Settings2,
   advanced: ListFilter,
   userReport: FileText,
@@ -77,10 +78,10 @@ export const Icons = {
   workingHours: UserCheck,
   timeInStatus: Workflow,
   assigneeWorkload: Package,
-  taskCompletion: CheckCircle2, // Retains CheckCircle2 as taskCompletion
-  checkCircle2: CheckCircle2, // Adds specific 'checkCircle2' for OverviewTab
-  bugTrends: XCircle,
-  cfd: AreaChart, // Cumulative Flow Diagram
+  taskCompletion: CheckCircle2, 
+  checkCircle2: CheckCircle2, 
+  bugTrends: Bug, // Updated to use Bug icon
+  cfd: AreaChart, 
   customFieldDist: PieChart,
   project: Projector,
   date: CalendarDays,
@@ -98,3 +99,5 @@ export const Icons = {
 };
 
 export type IconName = keyof typeof Icons;
+
+    
