@@ -37,9 +37,6 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   } else if (queryType === 'project' && project) {
     constructedJql = `project = "${project}"`;
     if (dateRange?.from) {
-      // Jira JQL expects 'YYYY-MM-DD' for date comparisons or 'YYYY-MM-DD HH:mm' for datetime.
-      // Using toISOString and splitting is generally okay for date-only if your Jira field is date-only.
-      // For created/updated, Jira typically uses datetime.
       constructedJql += ` AND created >= "${dateRange.from.toISOString().split('T')[0]}"`;
     }
     if (dateRange?.to) {
@@ -47,33 +44,27 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     }
   }
 
-  // Add issue type filter if specified and not 'all'
   if (issueType && issueType.toLowerCase() !== 'all') {
     if (constructedJql) {
       constructedJql += ` AND issuetype = "${issueType}"`;
     } else {
-      // This case might occur if queryType is 'project' but no project is selected,
-      // though UI should prevent this. Or if it's the only filter.
       constructedJql = `issuetype = "${issueType}"`;
     }
   }
   
   console.log('Constructed JQL for API:', constructedJql);
 
-  // const jiraApiEndpoint = `${jiraUrl.replace(/\/$/, '')}/rest/api/3/search`; // Use API v3
+  // const jiraApiEndpoint = `${jiraUrl.replace(/\/$/, '')}/rest/api/3/search`;
   // const authString = `${email}:${apiToken}`;
   // const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
-
-  // // Common fields to request. Adjust based on your Jira instance and needs.
   // const fieldsToRequest = [
   //   "summary", "description", "status", "issuetype", "project", "assignee", "reporter",
   //   "priority", "labels", "components", "created", "updated", "resolutiondate",
   //   "timeoriginalestimate", "timespent", "timeestimate",
   //   "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
   //   "worklog", "parent", 
-  //   "customfield_10007", // Example for Sprint field (might vary)
-  //   "customfield_12326", // Example for Story Points field (might vary)
-  //   // Add other custom field IDs you need, e.g., "customfield_XXXXX"
+  //   "customfield_10007", // Sprint field ID (example)
+  //   "customfield_12326", // Story Points field ID (example)
   //   // "*navigable" // Gets all fields user can see, useful for discovery but can be verbose
   // ];
 
@@ -91,7 +82,6 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     //     fields: fieldsToRequest,
     //     startAt: 0,
     //     maxResults: 100, // Implement pagination for real use
-    //     // expand: ['changelog'] // If changelog is needed and not too large
     //   }),
     // });
 
@@ -104,25 +94,15 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     // const responseData = await response.json();
     // const issues: JiraIssue[] = responseData.issues.map((issue: any) => {
     //   let sprintData: JiraSprint | null = null;
-    //   let closedSprintsData: JiraSprint[] = [];
-
-    //   // Attempt to parse sprint information (often in customfield_10007)
-    //   // Jira sprint fields can be complex (e.g., an array of strings, each a stringified object)
-    //   const rawSprintField = issue.fields.customfield_10007; // Adjust field ID as needed
+    //   const rawSprintField = issue.fields.customfield_10007; 
     //   if (rawSprintField && Array.isArray(rawSprintField) && rawSprintField.length > 0) {
     //       const parsedSprints = rawSprintField.map(s => typeof s === 'string' ? parseSprintString(s) : s).filter(Boolean) as JiraSprint[];
-    //       const activeSprint = parsedSprints.find(s => s.state === 'active');
-    //       const futureSprint = parsedSprints.find(s => s.state === 'future');
-    //       sprintData = activeSprint || futureSprint || parsedSprints[parsedSprints.length -1] || null; // Prioritize active, then future, then most recent
-    //       closedSprintsData = parsedSprints.filter(s => s.state === 'closed');
+    //       sprintData = parsedSprints.find(s => s.state === 'active') || parsedSprints.find(s => s.state === 'future') || parsedSprints[parsedSprints.length -1] || null;
     //   }
-
-
     //   return {
     //     id: issue.key,
     //     self: issue.self,
     //     summary: issue.fields.summary,
-    //     description: issue.fields.description, // Often ADF format, handle accordingly
     //     status: issue.fields.status,
     //     type: issue.fields.issuetype,
     //     project: issue.fields.project,
@@ -130,72 +110,62 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     //     reporter: issue.fields.reporter,
     //     priority: issue.fields.priority,
     //     labels: issue.fields.labels || [],
-    //     components: issue.fields.components || [],
     //     created: issue.fields.created,
     //     updated: issue.fields.updated,
     //     resolutiondate: issue.fields.resolutiondate,
-    //     timeoriginalestimate: issue.fields.timeoriginalestimate,
-    //     timespent: issue.fields.timespent,
-    //     timeestimate: issue.fields.timeestimate,
-    //     aggregatetimeoriginalestimate: issue.fields.aggregatetimeoriginalestimate,
-    //     aggregatetimespent: issue.fields.aggregatetimespent,
-    //     aggregatetimeestimate: issue.fields.aggregatetimeestimate,
-    //     worklog: issue.fields.worklog,
-    //     parent: issue.fields.parent,
-    //     sprint: sprintData,
-    //     closedSprints: closedSprintsData,
-    //     storyPoints: issue.fields.customfield_12326 || null, // Adjust field ID
-    //     customfield_10007: rawSprintField, // Store raw sprint data too
+    //     storyPoints: issue.fields.customfield_12326 || null,
     //     customfield_12326: issue.fields.customfield_12326,
-    //     // map other fields as needed
+    //     sprint: sprintData,
+    //     customfield_10007: rawSprintField,
     //   };
     // });
     // return { success: true, data: issues, message: `Successfully fetched ${issues.length} issues from Jira.` };
     
-    // Mock response for now:
+    // Enhanced Mock response for now:
     const now = new Date();
     const mockData: JiraIssue[] = [
       { 
         id: 'MOCK-101', 
-        summary: `Mock issue for ${project || 'Any Project'} from server. Type: ${issueType || 'Any'}`, 
+        summary: `Mock issue for ${project || 'Any Project'}. Type: ${issueType || 'Any'}. Data from context.`, 
         status: { id: '1', name: 'To Do', statusCategory: { id: 2, key: 'new', name: 'To Do' } }, 
         type: { id: '10001', name: issueType && issueType.toLowerCase() !== 'all' ? issueType : 'Story', iconUrl: '...' }, 
         project: { id: '10000', key: project || 'MOCKPRJ', name: project ? `Project ${project}` : 'Mock Project' },
-        assignee: { displayName: 'Server Admin', emailAddress: 'admin@example.com' },
+        assignee: { displayName: 'Alice Wonderland', emailAddress: 'alice@example.com' },
         reporter: { displayName: 'Client User', emailAddress: 'client@example.com' },
         priority: {id: '3', name: 'Medium'},
-        labels: ['mock', 'backend'],
-        created: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
+        labels: ['mock', 'frontend', 'context-test'],
+        created: new Date(new Date(now).setDate(now.getDate() - 15)).toISOString(),
         updated: new Date(new Date(now).setDate(now.getDate() - 1)).toISOString(),
-        timeoriginalestimate: 28800, // 8 hours in seconds
-        timespent: 14400, // 4 hours in seconds
+        resolutiondate: null,
+        timeoriginalestimate: 28800, // 8 hours
+        timespent: 14400, // 4 hours
         timeestimate: 14400, // 4 hours remaining
         storyPoints: 5,
         customfield_12326: 5,
-        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
-        customfield_10007: [{id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 14)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 0)).toISOString() }] // Example raw data
+        sprint: {id: 1, name: 'Current Mock Sprint', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
+        customfield_10007: [{id: 1, name: 'Current Mock Sprint', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() }]
       },
       { 
         id: 'MOCK-102', 
-        summary: 'Another mock task based on JQL or filters', 
+        summary: 'Another mock task, this one in progress', 
         status: { id: '3', name: 'In Progress', statusCategory: { id: 4, key: 'indeterminate', name: 'In Progress' }}, 
         type: { id: '10002', name: 'Bug', iconUrl: '...' },
         project: { id: '10000', key: project || 'MOCKPRJ', name: project ? `Project ${project}` : 'Mock Project' },
-        assignee: { displayName: 'Dev Team', emailAddress: 'dev@example.com' },
+        assignee: { displayName: 'Bob The Builder', emailAddress: 'bob@example.com' },
         created: new Date(new Date(now).setDate(now.getDate() - 10)).toISOString(),
         updated: new Date(new Date(now).setDate(now.getDate() - 2)).toISOString(),
         resolutiondate: null,
         storyPoints: 3,
         customfield_12326: 3,
-        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
+        sprint: {id: 1, name: 'Current Mock Sprint', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
       },
       { 
         id: 'MOCK-103', 
-        summary: 'A completed mock feature', 
+        summary: 'A completed mock feature for reporting', 
         status: { id: '10000', name: 'Done', statusCategory: {id: 3, key: 'done', name: 'Done'}}, 
         type: { id: '10001', name: 'Story', iconUrl: '...' },
-        project: { id: '10001', key: 'OTHER', name: 'Other Project' },
-        assignee: { displayName: 'Server Admin', emailAddress: 'admin@example.com' },
+        project: { id: '10001', key: 'OTHER', name: 'Other Mock Project' },
+        assignee: { displayName: 'Charlie Brown', emailAddress: 'charlie@example.com' },
         created: new Date(new Date(now).setDate(now.getDate() - 20)).toISOString(),
         updated: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
         resolutiondate: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
@@ -204,12 +174,43 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         timeestimate: 0,
         storyPoints: 8,
         customfield_12326: 8,
-        sprint: {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() },
+        sprint: {id: 0, name: 'Previous Mock Sprint', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() },
         closedSprints: [
-            {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() }
+            {id: 0, name: 'Previous Mock Sprint', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() }
         ]
       },
+       { 
+        id: 'MOCK-104', 
+        summary: 'Unassigned task that needs attention', 
+        status: { id: '1', name: 'To Do', statusCategory: { id: 2, key: 'new', name: 'To Do' } }, 
+        type: { id: '10003', name: 'Task', iconUrl: '...' }, 
+        project: { id: '10000', key: project || 'MOCKPRJ', name: project ? `Project ${project}` : 'Mock Project' },
+        assignee: null, // Unassigned
+        reporter: { displayName: 'System Admin', emailAddress: 'sysadmin@example.com' },
+        created: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
+        updated: new Date(new Date(now).setDate(now.getDate() - 3)).toISOString(),
+        storyPoints: 2,
+        customfield_12326: 2,
+      },
+      { 
+        id: 'MOCK-105', 
+        summary: 'High priority bug for dashboard testing', 
+        status: { id: '3', name: 'In Progress', statusCategory: { id: 4, key: 'indeterminate', name: 'In Progress' }}, 
+        type: { id: '10002', name: 'Bug', iconUrl: '...' },
+        project: { id: '10002', key: 'REPORTING', name: 'Reporting Engine' },
+        assignee: { displayName: 'Alice Wonderland', emailAddress: 'alice@example.com' },
+        priority: {id: '1', name: 'Highest'},
+        created: new Date(new Date(now).setDate(now.getDate() - 2)).toISOString(),
+        updated: new Date(new Date(now).setDate(now.getDate() - 0)).toISOString(),
+        storyPoints: 5,
+        customfield_12326: 5,
+        sprint: {id: 1, name: 'Current Mock Sprint', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
+      },
     ];
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     return {
       success: true,
       message: `Data received by server. ${mockData.length} mock issues returned based on: ${constructedJql || 'default filters'}. Actual Jira fetch is mocked.`,
@@ -218,10 +219,8 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
 
   } catch (error: any) {
     console.error('Error in fetchJiraIssues server action:', error);
-    // Ensure you don't leak sensitive error details to the client
     let errorMessage = 'An unknown error occurred on the server.';
     if (error.message) {
-        // Basic check for network errors vs other errors
         if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
             errorMessage = 'Network error: Could not connect to Jira. Please check the Jira URL and your network connection.';
         } else {
