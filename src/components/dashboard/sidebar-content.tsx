@@ -15,15 +15,17 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
   SidebarHeader,
-  SidebarContent as UISidebarContent, // Renamed import to avoid conflict if used as a wrapper
+  SidebarContent as UISidebarContent,
   SidebarFooter,
-  SidebarSeparator, // Added missing import
+  SidebarSeparator,
   SidebarGroup,
   SidebarGroupLabel,
 } from '@/components/ui/sidebar';
-
+import { useToast } from '@/hooks/use-toast';
+import { fetchJiraIssues, type JiraConfig, type JiraFilters } from '@/actions/jira-actions';
 
 export function JiraSidebarContent() {
+  const { toast } = useToast();
   const [jiraUrl, setJiraUrl] = useState('');
   const [email, setEmail] = useState('');
   const [apiToken, setApiToken] = useState('');
@@ -31,11 +33,46 @@ export function JiraSidebarContent() {
   const [jqlQuery, setJqlQuery] = useState('');
   const [project, setProject] = useState('');
   const [dateRange, setDateRange] = React.useState<{ from?: Date; to?: Date }>({});
+  const [issueType, setIssueType] = useState<string>('all');
+  const [isFetching, setIsFetching] = useState(false);
 
-  const handleFetchIssues = () => {
-    // Placeholder for actual fetch logic
-    console.log('Fetching issues with:', { jiraUrl, email, apiToken, queryType, jqlQuery, project, dateRange });
-    // toast({ title: 'Fetching Issues', description: 'Data retrieval initiated.' });
+  const handleFetchIssues = async () => {
+    setIsFetching(true);
+    const config: JiraConfig = { jiraUrl, email, apiToken };
+    const filtersBase: Partial<JiraFilters> = { queryType };
+
+    if (queryType === 'jql') {
+      filtersBase.jqlQuery = jqlQuery;
+    } else {
+      filtersBase.project = project;
+      filtersBase.dateRange = dateRange;
+    }
+    
+    if (issueType && issueType !== 'all') {
+      filtersBase.issueType = issueType;
+    }
+
+    const params = { ...config, ...filtersBase } as JiraConfig & JiraFilters;
+
+    console.log('Fetching issues with params:', params);
+    
+    try {
+      const result = await fetchJiraIssues(params);
+      console.log('Server Action result:', result);
+
+      if (result.success) {
+        toast({ title: 'Success', description: result.message || 'Fetched issues successfully.' });
+        // TODO: Update application state with result.data
+        console.log("Fetched data:", result.data);
+      } else {
+        toast({ title: 'Error Fetching Issues', description: result.error || 'An unknown error occurred.', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      console.error('Failed to call fetchJiraIssues action:', error);
+      toast({ title: 'Client Error', description: error.message || 'Could not connect to the server.', variant: 'destructive' });
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   return (
@@ -47,7 +84,7 @@ export function JiraSidebarContent() {
         </div>
       </SidebarHeader>
 
-      <UISidebarContent className="p-0"> {/* Use the imported UISidebarContent as the wrapper */}
+      <UISidebarContent className="p-0">
         <SidebarGroup>
           <SidebarGroupLabel className="px-4">Jira Configuration</SidebarGroupLabel>
           <div className="space-y-3 px-4">
@@ -98,9 +135,10 @@ export function JiraSidebarContent() {
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="projA">Project Alpha</SelectItem>
-                      <SelectItem value="projB">Project Beta</SelectItem>
-                      <SelectItem value="projC">Project Charlie</SelectItem>
+                      <SelectItem value="PROJA">Project Alpha</SelectItem>
+                      <SelectItem value="PROJB">Project Beta</SelectItem>
+                      <SelectItem value="PROJC">Project Charlie</SelectItem>
+                      {/* Add more projects or fetch dynamically */}
                     </SelectContent>
                   </Select>
                 </div>
@@ -148,16 +186,17 @@ export function JiraSidebarContent() {
             
             <div>
               <Label htmlFor="issue-type-filter">Issue Type</Label>
-              <Select>
+              <Select value={issueType} onValueChange={setIssueType}>
                 <SelectTrigger id="issue-type-filter">
                   <SelectValue placeholder="Filter by issue type (optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Issue Types</SelectItem>
-                  <SelectItem value="bug">Bug</SelectItem>
-                  <SelectItem value="story">Story</SelectItem>
-                  <SelectItem value="task">Task</SelectItem>
-                  <SelectItem value="epic">Epic</SelectItem>
+                  <SelectItem value="Bug">Bug</SelectItem>
+                  <SelectItem value="Story">Story</SelectItem>
+                  <SelectItem value="Task">Task</SelectItem>
+                  <SelectItem value="Epic">Epic</SelectItem>
+                  {/* Add more issue types or fetch dynamically */}
                 </SelectContent>
               </Select>
             </div>
@@ -166,8 +205,8 @@ export function JiraSidebarContent() {
       </UISidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <Button onClick={handleFetchIssues} className="w-full">
-          Fetch Issues
+        <Button onClick={handleFetchIssues} className="w-full" disabled={isFetching}>
+          {isFetching ? 'Fetching...' : 'Fetch Issues'}
         </Button>
       </SidebarFooter>
     </>
