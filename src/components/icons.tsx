@@ -1,3 +1,4 @@
+
 import type { LucideProps } from 'lucide-react';
 import {
   LayoutDashboard,
@@ -35,7 +36,8 @@ import {
   Filter,
   Projector,
   UserCircle2,
-  LineChart
+  LineChart,
+  Loader2, // Added Loader2 for loading spinner
 } from 'lucide-react';
 
 export const Icons = {
@@ -85,13 +87,14 @@ export const Icons = {
   filter: Filter,
   percent: Percent,
   lineChart: LineChart,
-  users: Users, // Added mapping for users icon
+  users: Users,
   github: Github,
   lifeBuoy: LifeBuoy,
   login: LogIn,
   logout: FileOutput,
   checkCircle2: CheckCircle2,
   alertTriangle: AlertTriangle,
+  loader: Loader2, // Added loader icon
 };
 
 export type IconName = keyof typeof Icons;

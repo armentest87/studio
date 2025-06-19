@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,37 +22,76 @@ import {
   SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { fetchJiraIssues, type JiraConfig, type JiraFilters } from '@/actions/jira-actions';
+import { fetchJiraIssues } from '@/actions/jira-actions';
+import type { JiraConfig, JiraFilters } from '@/types/jira';
+import { JiraDataContext } from '@/context/JiraDataContext'; // Import the context
 
 export function JiraSidebarContent() {
   const { toast } = useToast();
-  const [jiraUrl, setJiraUrl] = useState('');
-  const [email, setEmail] = useState('');
-  const [apiToken, setApiToken] = useState('');
-  const [queryType, setQueryType] = useState<'jql' | 'project'>('jql');
+  const jiraDataContext = useContext(JiraDataContext);
+
+  if (!jiraDataContext) {
+    // This should ideally not happen if SidebarProvider wraps this component correctly
+    throw new Error("JiraSidebarContent must be used within a JiraDataProvider");
+  }
+  const { setIssues, setIsLoading: setContextIsLoading, setError: setContextError } = jiraDataContext;
+
+
+  const [jiraUrl, setJiraUrl] = useState(process.env.NEXT_PUBLIC_JIRA_URL || '');
+  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_JIRA_EMAIL || '');
+  const [apiToken, setApiToken] = useState(process.env.NEXT_PUBLIC_JIRA_API_TOKEN || '');
+  
+  const [queryType, setQueryType] = useState<'jql' | 'project'>('project');
   const [jqlQuery, setJqlQuery] = useState('');
-  const [project, setProject] = useState('');
+  const [project, setProject] = useState(''); // Stores project key
   const [dateRange, setDateRange] = React.useState<{ from?: Date; to?: Date }>({});
-  const [issueType, setIssueType] = useState<string>('all');
+  const [issueType, setIssueType] = useState<string>('all'); // 'all' or specific type like 'Bug'
   const [isFetching, setIsFetching] = useState(false);
 
   const handleFetchIssues = async () => {
+    if (!jiraUrl || !email || !apiToken) {
+      toast({
+        title: 'Configuration Missing',
+        description: 'Please provide Jira URL, Email, and API Token.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (queryType === 'project' && !project) {
+        toast({
+            title: 'Project Missing',
+            description: 'Please select a project when using Project/Date filter.',
+            variant: 'destructive',
+        });
+        return;
+    }
+    if (queryType === 'jql' && !jqlQuery) {
+        toast({
+            title: 'JQL Query Missing',
+            description: 'Please enter a JQL query.',
+            variant: 'destructive',
+        });
+        return;
+    }
+
+
     setIsFetching(true);
+    setContextIsLoading(true);
+    setContextError(null);
+    setIssues([]); // Clear previous issues
+
     const config: JiraConfig = { jiraUrl, email, apiToken };
-    const filtersBase: Partial<JiraFilters> = { queryType };
+    
+    let filters: JiraFilters = { queryType, issueType: issueType === 'all' ? undefined : issueType };
 
     if (queryType === 'jql') {
-      filtersBase.jqlQuery = jqlQuery;
-    } else {
-      filtersBase.project = project;
-      filtersBase.dateRange = dateRange;
+      filters.jqlQuery = jqlQuery;
+    } else { // queryType === 'project'
+      filters.project = project;
+      filters.dateRange = dateRange.from || dateRange.to ? dateRange : undefined;
     }
     
-    if (issueType && issueType !== 'all') {
-      filtersBase.issueType = issueType;
-    }
-
-    const params = { ...config, ...filtersBase } as JiraConfig & JiraFilters;
+    const params = { ...config, ...filters };
 
     console.log('Fetching issues with params:', params);
     
@@ -60,20 +99,34 @@ export function JiraSidebarContent() {
       const result = await fetchJiraIssues(params);
       console.log('Server Action result:', result);
 
-      if (result.success) {
-        toast({ title: 'Success', description: result.message || 'Fetched issues successfully.' });
-        // TODO: Update application state with result.data
-        console.log("Fetched data:", result.data);
+      if (result.success && result.data) {
+        toast({ title: 'Success', description: result.message || `Fetched ${result.data.length} issues successfully.` });
+        setIssues(result.data);
       } else {
         toast({ title: 'Error Fetching Issues', description: result.error || 'An unknown error occurred.', variant: 'destructive' });
+        setContextError(result.error || 'An unknown error occurred.');
+        setIssues([]);
       }
     } catch (error: any) {
       console.error('Failed to call fetchJiraIssues action:', error);
-      toast({ title: 'Client Error', description: error.message || 'Could not connect to the server.', variant: 'destructive' });
+      const errorMessage = error.message || 'Could not connect to the server.';
+      toast({ title: 'Client Error', description: errorMessage, variant: 'destructive' });
+      setContextError(errorMessage);
+      setIssues([]);
     } finally {
       setIsFetching(false);
+      setContextIsLoading(false);
     }
   };
+
+  // Mock project list - replace with dynamic fetching if needed
+  const mockProjects = [
+    { key: "PROJA", name: "Project Alpha" },
+    { key: "PROJB", name: "Project Beta" },
+    { key: "PROJC", name: "Project Charlie" },
+    { key: "MOCKPRJ", name: "Mock Project" },
+    { key: "OTHER", name: "Other Project" },
+  ];
 
   return (
     <>
@@ -135,15 +188,14 @@ export function JiraSidebarContent() {
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PROJA">Project Alpha</SelectItem>
-                      <SelectItem value="PROJB">Project Beta</SelectItem>
-                      <SelectItem value="PROJC">Project Charlie</SelectItem>
-                      {/* Add more projects or fetch dynamically */}
+                      {mockProjects.map(p => (
+                        <SelectItem key={p.key} value={p.key}>{p.name} ({p.key})</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="date-range">Date Range</Label>
+                  <Label htmlFor="date-range">Date Range (Created)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -151,7 +203,7 @@ export function JiraSidebarContent() {
                         variant={"outline"}
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !dateRange.from && "text-muted-foreground"
+                          !dateRange.from && !dateRange.to && "text-muted-foreground"
                         )}
                       >
                         <Icons.date className="mr-2 h-4 w-4" />
@@ -164,7 +216,10 @@ export function JiraSidebarContent() {
                           ) : (
                             format(dateRange.from, "LLL dd, y")
                           )
-                        ) : (
+                        ) : dateRange.to ? (
+                            `Until ${format(dateRange.to, "LLL dd, y")}`
+                        )
+                        : (
                           <span>Pick a date range</span>
                         )}
                       </Button>
@@ -188,7 +243,7 @@ export function JiraSidebarContent() {
               <Label htmlFor="issue-type-filter">Issue Type</Label>
               <Select value={issueType} onValueChange={setIssueType}>
                 <SelectTrigger id="issue-type-filter">
-                  <SelectValue placeholder="Filter by issue type (optional)" />
+                  <SelectValue placeholder="Filter by issue type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Issue Types</SelectItem>
@@ -196,6 +251,7 @@ export function JiraSidebarContent() {
                   <SelectItem value="Story">Story</SelectItem>
                   <SelectItem value="Task">Task</SelectItem>
                   <SelectItem value="Epic">Epic</SelectItem>
+                  <SelectItem value="Sub-task">Sub-task</SelectItem>
                   {/* Add more issue types or fetch dynamically */}
                 </SelectContent>
               </Select>
@@ -205,8 +261,15 @@ export function JiraSidebarContent() {
       </UISidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <Button onClick={handleFetchIssues} className="w-full" disabled={isFetching}>
-          {isFetching ? 'Fetching...' : 'Fetch Issues'}
+        <Button onClick={handleFetchIssues} className="w-full" disabled={isFetching || jiraDataContext.isLoading}>
+          {isFetching || jiraDataContext.isLoading ? (
+            <>
+              <Icons.loader className="mr-2 h-4 w-4 animate-spin" />
+              Fetching...
+            </>
+          ) : (
+            'Fetch Issues'
+          )}
         </Button>
       </SidebarFooter>
     </>
