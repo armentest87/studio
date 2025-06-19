@@ -10,8 +10,8 @@ import { JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react'; // For error icon
-import { format, eachWeekOfInterval, startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { AlertTriangle } from 'lucide-react'; 
+import { format, eachWeekOfInterval, startOfWeek, endOfWeek, parseISO, isValid } from 'date-fns';
 
 
 const chartConfig = {
@@ -61,16 +61,17 @@ export function TeamWorkloadTab() {
 
     // Task Completion Rate: Issues completed per week
     const completionMap = new Map<string, number>();
-    const resolvedIssues = issues.filter(issue => issue.status?.statusCategory?.key === 'done' && issue.resolutiondate);
+    const resolvedIssues = issues.filter(issue => issue.status?.statusCategory?.key === 'done' && issue.resolutiondate && isValid(parseISO(issue.resolutiondate)));
     
     if (resolvedIssues.length > 0) {
-        const firstDate = parseISO(resolvedIssues.reduce((min, p) => p.resolutiondate! < min ? p.resolutiondate! : min, resolvedIssues[0].resolutiondate!));
-        const lastDate = parseISO(resolvedIssues.reduce((max, p) => p.resolutiondate! > max ? p.resolutiondate! : max, resolvedIssues[0].resolutiondate!));
+        const resolutionDates = resolvedIssues.map(i => parseISO(i.resolutiondate!));
+        const firstDate = resolutionDates.reduce((min, p) => p < min ? p : min);
+        const lastDate = resolutionDates.reduce((max, p) => p > max ? p : max);
 
-        if (firstDate <= lastDate) {
+        if (isValid(firstDate) && isValid(lastDate) && firstDate <= lastDate) {
             const weeks = eachWeekOfInterval({ start: firstDate, end: lastDate }, { weekStartsOn: 1 });
             weeks.forEach(weekStart => {
-                const weekKey = format(weekStart, 'yyyy-MM-dd'); // Use a consistent key format
+                const weekKey = format(weekStart, 'yyyy-MM-dd'); 
                 completionMap.set(weekKey, 0);
             });
 
@@ -86,8 +87,8 @@ export function TeamWorkloadTab() {
     }
     const taskCompletionRateData = Array.from(completionMap.entries())
       .map(([week, count]) => ({ week: format(parseISO(week), 'MMM d'), completionRate: count }))
-      .sort((a,b) => parseISO(a.week).getTime() - parseISO(b.week).getTime()) // ensure chronological order
-      .slice(-8); // Show last 8 weeks
+      .sort((a,b) => parseISO(a.week).getTime() - parseISO(b.week).getTime()) 
+      .slice(-8); 
 
 
     return { assigneeWorkloadData, taskCompletionRateData };
@@ -108,8 +109,8 @@ export function TeamWorkloadTab() {
     );
   }
 
-  if (!issues || issues.length === 0) {
-    return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched. Please use the sidebar to fetch issues.</div>;
+  if (!issues || issues.length === 0 || (processedData.assigneeWorkloadData.length === 0 && processedData.taskCompletionRateData.length === 0)) {
+    return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched or data is insufficient for Team Workload analysis. Please use the sidebar to fetch relevant issues.</div>;
   }
 
   return (
@@ -127,7 +128,7 @@ export function TeamWorkloadTab() {
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
               <BarChart data={processedData.assigneeWorkloadData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
+                <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
                 <YAxis dataKey="assignee" type="category" tickLine={false} axisLine={false} tickMargin={8} width={100} />
                 <Tooltip content={<ChartTooltipContent indicator="line" />} />
                 <Legend content={<ChartLegendContent />} />
@@ -168,5 +169,3 @@ export function TeamWorkloadTab() {
     </div>
   );
 }
-
-    

@@ -74,7 +74,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     if (constructedJql) {
       constructedJql += ` AND issuetype = "${issueType}"`;
     } else {
-      constructedJql = `issuetype = "${issueType}"`;
+      constructedJql = `issuetype = "${issueType}"`; // Should not happen if project or JQL is required
     }
   }
 
@@ -88,14 +88,16 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   const authString = `${email}:${apiToken}`;
   const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
   
+  // Comprehensive list of fields based on old app and potential needs
   const fieldsToRequest = [
     "summary", "description", "status", "issuetype", "project", "assignee", "reporter",
     "priority", "labels", "components", "created", "updated", "resolutiondate",
     "timeoriginalestimate", "timespent", "timeestimate",
     "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
-    "worklog", "parent", 
-    "customfield_10007", // Sprint field ID (example, often holds sprint details)
-    "customfield_12326", // Story Points field ID (example)
+    "worklog", "parent", "duedate", "environment", "versions", "fixVersions",
+    "customfield_10007", // Sprint field ID (example, often holds sprint details) - Adjust if different for your instance
+    "customfield_12326", // Story Points field ID (example) - Adjust if different for your instance
+    // Add other common custom field IDs if known, e.g., "customfield_10016" (another sprint field variant), "customfield_10020" (Epic Link) etc.
   ];
 
   let allIssuesRaw: any[] = [];
@@ -109,10 +111,12 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
       const body = {
         jql: constructedJql,
         fields: fieldsToRequest,
+        expand: ["changelog"], // Expand changelog for more detailed history if needed later
         startAt: startAt,
         maxResults: maxResultsPerRequest,
       };
 
+      console.log(`Fetching issues from Jira: startAt=${startAt}, maxResults=${maxResultsPerRequest}`);
       const response = await fetch(jiraApiEndpoint, {
         method: 'POST',
         headers: {
@@ -126,16 +130,18 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Jira API Error:', response.status, errorText);
-        let detailedError = errorText;
+        let detailedError = `Status ${response.status}: ${response.statusText}.`;
         try {
           const jiraError = JSON.parse(errorText);
           if (jiraError && jiraError.errorMessages && jiraError.errorMessages.length > 0) {
-              detailedError = jiraError.errorMessages.join('; ');
+              detailedError += ` ${jiraError.errorMessages.join('; ')}`;
           } else if (jiraError && jiraError.message) {
-              detailedError = jiraError.message;
+              detailedError += ` ${jiraError.message}`;
           }
-        } catch (parseError) { /* Ignore if not JSON */ }
-        return { success: false, error: `Jira API request failed: ${response.statusText} (Status ${response.status}). ${detailedError}`, data: null };
+        } catch (parseError) { 
+            detailedError += ` Response: ${errorText.substring(0, 200)}...`; // Show partial response if not JSON
+        }
+        return { success: false, error: `Jira API request failed. ${detailedError}`, data: null };
       }
 
       const responseData = await response.json();
@@ -148,13 +154,14 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
       
       totalIssuesFromResponse = responseData.total || 0;
       startAt += fetchedIssuesInBatch;
+      console.log(`Fetched ${fetchedIssuesInBatch} issues. Total so far: ${allIssuesRaw.length} of ${totalIssuesFromResponse}`);
       
     } while (startAt < totalIssuesFromResponse && fetchedIssuesInBatch > 0); 
 
 
     const issues: JiraIssue[] = allIssuesRaw.map((issue: any) => {
       let sprintData: JiraSprint | null = null;
-      const rawSprintField = issue.fields.customfield_10007; 
+      const rawSprintField = issue.fields.customfield_10007; // Adjust this if your sprint field ID is different
 
       if (rawSprintField && Array.isArray(rawSprintField) && rawSprintField.length > 0) {
           const parsedSprints = rawSprintField
@@ -175,12 +182,13 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
             })
             .filter(Boolean) as JiraSprint[];
             
+          // Prioritize active, then future, then most recently completed/ended sprint
           sprintData = parsedSprints.find(s => s.state === 'active') || 
                         parsedSprints.find(s => s.state === 'future') || 
                         parsedSprints.sort((a,b) => {
-                            const dateA = a.endDate ? new Date(a.endDate).getTime() : (a.completeDate ? new Date(a.completeDate).getTime() : 0);
-                            const dateB = b.endDate ? new Date(b.endDate).getTime() : (b.completeDate ? new Date(b.completeDate).getTime() : 0);
-                            return dateB - dateA; 
+                            const dateA = a.completeDate ? new Date(a.completeDate).getTime() : (a.endDate ? new Date(a.endDate).getTime() : 0);
+                            const dateB = b.completeDate ? new Date(b.completeDate).getTime() : (b.endDate ? new Date(b.endDate).getTime() : 0);
+                            return dateB - dateA; // Sort descending by completion/end date
                         })[0] || 
                         null;
       }
@@ -201,6 +209,10 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         created: issue.fields.created,
         updated: issue.fields.updated,
         resolutiondate: issue.fields.resolutiondate,
+        duedate: issue.fields.duedate,
+        environment: issue.fields.environment,
+        versions: issue.fields.versions || [],
+        fixVersions: issue.fields.fixVersions || [],
 
         timeoriginalestimate: issue.fields.timeoriginalestimate,
         timespent: issue.fields.timespent,
@@ -216,16 +228,19 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         closedSprints: rawSprintField && Array.isArray(rawSprintField) ? 
           rawSprintField.map(s => {
             if (typeof s === 'string') return parseSprintString(s);
-            if (typeof s === 'object' && s !== null && s.id && s.name && s.state) return s as JiraSprint; 
+            if (typeof s === 'object' && s !== null && s.id && s.name && s.state) return s as JiraSprint; // Assuming it's already a JiraSprint like object
             return null;
           }).filter(s => s && s.state === 'closed') as JiraSprint[] : [],
-        customfield_10007: rawSprintField, 
+        customfield_10007: rawSprintField, // Store raw sprint field for debugging or other uses
 
-        storyPoints: issue.fields.customfield_12326 || null, 
-        customfield_12326: issue.fields.customfield_12326, 
+        storyPoints: issue.fields.customfield_12326 || null, // Adjust if your story points field ID is different
+        customfield_12326: issue.fields.customfield_12326, // Store raw story points for debugging
+
+        changelog: issue.changelog, // Store expanded changelog
       };
     });
 
+    console.log(`Successfully processed ${issues.length} issues.`);
     return { 
       success: true, 
       data: issues, 
@@ -236,7 +251,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     console.error('Error in fetchJiraIssues server action:', error);
     let errorMessage = 'An unknown error occurred on the server.';
     if (error.message) {
-        if (error.message.toLowerCase().includes('fetch')) { 
+        if (error.message.toLowerCase().includes('fetch') || error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('dns')) { 
             errorMessage = 'Network error: Could not connect to Jira. Please check the Jira URL and your network connection. Also, verify API token permissions and that the Jira instance is accessible.';
         } else {
             errorMessage = `An internal server error occurred: ${error.message}`;
@@ -257,20 +272,21 @@ export async function fetchJiraProjects(params: JiraConfig): Promise<FetchJiraPr
   const authString = `${email}:${apiToken}`;
   const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
 
-  // --- MOCK IMPLEMENTATION START ---
+  // --- MOCK IMPLEMENTATION START (Comment out or remove for live API) ---
   // console.log("Mocking fetchJiraProjects call. To enable live API, uncomment below and comment out mock.");
-  const mockProjects: JiraProjectDetail[] = [
-    { id: "10001", key: "PROJA", name: "Project Alpha", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: false, style: "classic" },
-    { id: "10002", key: "PROJB", name: "Project Beta", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: true, style: "next-gen" },
-    { id: "10003", key: "MOCK", name: "Mock Project X", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "business", simplified: false, style: "classic" },
-  ];
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-  return { success: true, data: mockProjects, message: "Successfully fetched mock projects." };
+  // const mockProjects: JiraProjectDetail[] = [
+  //   { id: "10001", key: "PROJA", name: "Project Alpha", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: false, style: "classic" },
+  //   { id: "10002", key: "PROJB", name: "Project Beta", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: true, style: "next-gen" },
+  //   { id: "10003", key: "MOCK", name: "Mock Project X", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "business", simplified: false, style: "classic" },
+  // ];
+  // await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+  // return { success: true, data: mockProjects, message: "Successfully fetched mock projects." };
   // --- MOCK IMPLEMENTATION END ---
 
 
-  /* --- REAL API CALL (Commented out by default) ---
+  // --- REAL API CALL ---
   try {
+    console.log("Fetching projects from Jira API...");
     const response = await fetch(jiraApiEndpoint, {
       method: 'GET',
       headers: {
@@ -282,26 +298,28 @@ export async function fetchJiraProjects(params: JiraConfig): Promise<FetchJiraPr
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Jira API Error (Projects):', response.status, errorText);
-      let detailedError = errorText;
+      let detailedError = `Status ${response.status}: ${response.statusText}.`;
       try {
         const jiraError = JSON.parse(errorText);
-        detailedError = jiraError?.errorMessages?.join('; ') || jiraError?.message || errorText;
-      } catch (parseError) {}
-      return { success: false, error: `Jira API request for projects failed: ${response.statusText} (Status ${response.status}). ${detailedError}`, data: null };
+        detailedError += jiraError?.errorMessages?.join('; ') || jiraError?.message || '';
+      } catch (parseError) {
+        detailedError += ` Response: ${errorText.substring(0,100)}...`;
+      }
+      return { success: false, error: `Jira API request for projects failed. ${detailedError}`, data: null };
     }
 
     const projectsData: JiraProjectDetail[] = await response.json();
+    console.log(`Successfully fetched ${projectsData.length} projects.`);
     return { success: true, data: projectsData, message: `Successfully fetched ${projectsData.length} projects.` };
 
   } catch (error: any) {
     console.error('Error in fetchJiraProjects server action:', error);
     let errorMessage = 'An unknown server error occurred while fetching projects.';
-    if (error.message && error.message.toLowerCase().includes('fetch')) {
+     if (error.message && (error.message.toLowerCase().includes('fetch') || error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('dns'))) {
       errorMessage = 'Network error: Could not connect to Jira to fetch projects. Check URL and connection.';
     } else if (error.message) {
       errorMessage = `Error fetching projects: ${error.message}`;
     }
     return { success: false, error: errorMessage, data: null };
   }
-  */
 }

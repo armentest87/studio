@@ -11,13 +11,12 @@ import type { JiraIssue } from '@/types/jira';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
-import { format, parseISO, eachDayOfInterval, isBefore, isEqual, isAfter } from 'date-fns';
+import { format, parseISO, eachDayOfInterval, isBefore, isEqual, isAfter, isValid, subDays } from 'date-fns';
 
 
 const chartConfig = {
   todo: { label: "To Do", color: "hsl(var(--chart-1))" },
   inProgress: { label: "In Progress", color: "hsl(var(--chart-2))" },
-  // inReview: { label: "In Review", color: "hsl(var(--chart-3))" }, // Simplified CFD, not using In Review explicitly
   done: { label: "Done", color: "hsl(var(--chart-4))" },
 };
 
@@ -45,27 +44,31 @@ export function AdvancedMetricsTab() {
   const cfdData = useMemo(() => {
     if (!issues || issues.length === 0) return [];
 
-    const relevantIssues = issues.filter(issue => issue.created); // Only consider issues with a creation date
+    const relevantIssues = issues.filter(issue => issue.created && isValid(parseISO(issue.created))); 
 
     if (relevantIssues.length === 0) return [];
+    
+    let minDateOverall = new Date();
+    let maxDateOverall = subDays(new Date(), 90); // Default to 90 days ago if no issues
 
-    const dates = relevantIssues.map(issue => parseISO(issue.created!));
-    if (relevantIssues.some(issue => issue.resolutiondate)) {
-        relevantIssues.filter(issue => issue.resolutiondate).forEach(issue => dates.push(parseISO(issue.resolutiondate!)));
+    if (relevantIssues.length > 0) {
+        const createdDates = relevantIssues.map(issue => parseISO(issue.created!));
+        const resolvedDates = relevantIssues.filter(issue => issue.resolutiondate && isValid(parseISO(issue.resolutiondate!))).map(issue => parseISO(issue.resolutiondate!));
+        const allDates = [...createdDates, ...resolvedDates];
+
+        if (allDates.length > 0) {
+            minDateOverall = allDates.reduce((min, d) => d < min ? d : min, allDates[0]);
+            maxDateOverall = allDates.reduce((max, d) => d > max ? d : max, allDates[0]);
+        }
     }
-    
-    const minDate = dates.reduce((min, d) => d < min ? d : min, dates[0]);
-    const maxDate = new Date(); // Today or last relevant date
-    
-    // Create an interval of days (e.g., last 30 days or based on data range)
-    const startDate = relevantIssues.length > 0 
-                      ? parseISO(relevantIssues.reduce((earliest, issue) => issue.created! < earliest ? issue.created! : earliest, relevantIssues[0].created!))
-                      : new Date(new Date().setDate(new Date().getDate() - 30)); // fallback to last 30 days
-    const endDate = new Date(); // today
+    // Ensure maxDate is at least today if data is very recent or only created dates exist
+    if (maxDateOverall < new Date()) maxDateOverall = new Date();
+    // Ensure a reasonable range, e.g., if minDateOverall is too far in past, cap it, or ensure start is not after end
+    if (minDateOverall > maxDateOverall) minDateOverall = subDays(maxDateOverall, 30);
 
-    if (startDate > endDate) return [];
 
-    const daySeries = eachDayOfInterval({ start: startDate, end: endDate });
+    const daySeries = eachDayOfInterval({ start: minDateOverall, end: maxDateOverall });
+    if (daySeries.length === 0) return [];
 
     return daySeries.map(day => {
       let todo = 0;
@@ -74,28 +77,24 @@ export function AdvancedMetricsTab() {
 
       relevantIssues.forEach(issue => {
         const createdDate = parseISO(issue.created!);
-        const resolutionDate = issue.resolutiondate ? parseISO(issue.resolutiondate) : null;
+        const resolutionDate = issue.resolutiondate && isValid(parseISO(issue.resolutiondate)) ? parseISO(issue.resolutiondate) : null;
         
-        // Is the issue created by this 'day'?
         if (isBefore(createdDate, day) || isEqual(createdDate, day)) {
           if (resolutionDate && (isBefore(resolutionDate, day) || isEqual(resolutionDate, day))) {
             done++;
           } else {
-            // Approximation: if not done, check status category
-            // 'new' -> To Do, 'indeterminate' -> In Progress
-            // This is a simplification; true CFD needs status history.
-            if (issue.status?.statusCategory?.key === 'new' || issue.status?.statusCategory?.key === 'todo') {
+            // Simplified logic: If not done, it's either To Do or In Progress.
+            // This needs actual status history for accuracy.
+            const statusKey = issue.status?.statusCategory?.key;
+            if (statusKey === 'new' || statusKey === 'todo') {
               todo++;
-            } else if (issue.status?.statusCategory?.key === 'indeterminate' || issue.status?.statusCategory?.key === 'inprogress') {
-              // Further check: if it was resolved *after* current 'day', it was in progress on 'day'
-              if (resolutionDate && isAfter(resolutionDate, day)){
-                 inProgress++;
-              } else if (!resolutionDate) { // if not resolved yet at all
-                 inProgress++;
-              } else { // resolved before or on 'day', already counted in 'done'
-                 todo++; // if it's not done and not in progress, assume todo
-              }
-            } else { // if no clear status or other category, assume todo if not done
+            } else if (statusKey === 'indeterminate' || statusKey === 'inprogress') {
+              inProgress++;
+            } else if (!statusKey && !resolutionDate) { // No status category, not resolved -> assume ToDo
+              todo++;
+            } else if (statusKey && statusKey !== 'done' && !resolutionDate){ // Has status category, not done, not resolved -> assume InProgress
+                inProgress++;
+            } else { // Fallback, could be a new status category or an edge case
                 todo++;
             }
           }
@@ -107,7 +106,7 @@ export function AdvancedMetricsTab() {
         inProgress,
         done,
       };
-    }).slice(-60); // Show last 60 data points for readability
+    }).slice(-90); // Show last 90 data points for readability, or adjust as needed
   }, [issues]);
 
 
@@ -125,8 +124,8 @@ export function AdvancedMetricsTab() {
     );
   }
 
-  if (!issues || issues.length === 0) {
-    return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched. Please use the sidebar to fetch issues.</div>;
+  if (!issues || issues.length === 0 || cfdData.length === 0) {
+    return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched or data is insufficient for CFD. Please fetch issues with created dates and statuses.</div>;
   }
 
 
@@ -138,7 +137,7 @@ export function AdvancedMetricsTab() {
             <Icons.cfd className="h-5 w-5 text-primary" />
             <CardTitle>Cumulative Flow Diagram (CFD)</CardTitle>
           </div>
-          <CardDescription>Visualizes the flow of work through different statuses over time. (Simplified)</CardDescription>
+          <CardDescription>Visualizes the flow of work through different statuses over time. (Simplified: based on current status and resolution date)</CardDescription>
         </CardHeader>
         <CardContent>
           {cfdData && cfdData.length > 0 ? (
@@ -156,18 +155,15 @@ export function AdvancedMetricsTab() {
                 <Tooltip content={<ChartTooltipContent indicator="line" />} />
                 <Legend content={<ChartLegendContent />} />
                 <Area type="monotone" dataKey="done" stackId="1" stroke="var(--color-done)" fill="var(--color-done)" fillOpacity={0.6} name="Done" />
-                {/* <Area type="monotone" dataKey="inReview" stackId="1" stroke="var(--color-inReview)" fill="var(--color-inReview)" fillOpacity={0.6} name="In Review" /> */}
                 <Area type="monotone" dataKey="inProgress" stackId="1" stroke="var(--color-inProgress)" fill="var(--color-inProgress)" fillOpacity={0.6} name="In Progress" />
                 <Area type="monotone" dataKey="todo" stackId="1" stroke="var(--color-todo)" fill="var(--color-todo)" fillOpacity={0.6} name="To Do" />
               </AreaChart>
             </ChartContainer>
           ) : (
-            <p className="text-sm text-muted-foreground">Not enough data to generate CFD.</p>
+            <p className="text-sm text-muted-foreground">Not enough data to generate CFD. Requires issues with creation dates and statuses.</p>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-
-    
