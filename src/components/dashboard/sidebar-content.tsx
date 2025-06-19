@@ -23,9 +23,6 @@ import {
   SidebarHeader,
   SidebarContent as UISidebarContent,
   SidebarFooter,
-  // SidebarSeparator, // No longer using explicit separator here, accordion items handle separation
-  // SidebarGroup, // Using Accordion items instead of explicit groups for these sections
-  // SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
 import { fetchJiraIssues, fetchJiraProjects } from '@/actions/jira-actions';
@@ -57,6 +54,7 @@ export function JiraSidebarContent() {
   const [projectsLoading, setProjectsLoading] = useState(false);
 
   useEffect(() => {
+    // Only attempt to load projects if essential config is present
     if (jiraUrl && email && apiToken) {
       const loadProjects = async () => {
         setProjectsLoading(true);
@@ -64,7 +62,7 @@ export function JiraSidebarContent() {
         if (result.success && result.data) {
           setJiraProjects(result.data);
         } else {
-          toast({ title: 'Failed to fetch projects', description: result.error || "Could not load project list.", variant: 'destructive' });
+          toast({ title: 'Failed to fetch projects', description: result.error || "Could not load project list. You can still type a project key.", variant: 'destructive' });
           setJiraProjects([]); 
         }
         setProjectsLoading(false);
@@ -200,16 +198,17 @@ export function JiraSidebarContent() {
                         <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project or type key"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {jiraProjects.length > 0 ? (
+                        {projectsLoading && <div className="p-2 text-sm text-muted-foreground text-center">Loading projects...</div>}
+                        {!projectsLoading && jiraProjects.length > 0 && (
                           jiraProjects.map(p => (
                             <SelectItem key={p.key} value={p.key}>{p.name} ({p.key})</SelectItem>
                           ))
-                        ) : (
-                          !projectsLoading && <SelectItem value="" disabled>No projects found</SelectItem>
+                        )}
+                        {!projectsLoading && jiraProjects.length === 0 && (
+                           <div className="p-2 text-sm text-muted-foreground text-center">No projects found. Type key below.</div>
                         )}
                       </SelectContent>
                     </Select>
-                     {/* Allow manual input as well, or rely on select only */}
                      <Input 
                         className="mt-1"
                         placeholder="Or type project key e.g., PROJ" 
