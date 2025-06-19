@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,24 +14,29 @@ import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   SidebarHeader,
   SidebarContent as UISidebarContent,
   SidebarFooter,
-  SidebarSeparator,
-  SidebarGroup,
-  SidebarGroupLabel,
+  // SidebarSeparator, // No longer using explicit separator here, accordion items handle separation
+  // SidebarGroup, // Using Accordion items instead of explicit groups for these sections
+  // SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { fetchJiraIssues } from '@/actions/jira-actions';
-import type { JiraConfig, JiraFilters } from '@/types/jira';
-import { JiraDataContext } from '@/context/JiraDataContext'; // Import the context
+import { fetchJiraIssues, fetchJiraProjects } from '@/actions/jira-actions';
+import type { JiraConfig, JiraFilters, JiraProjectDetail } from '@/types/jira';
+import { JiraDataContext } from '@/context/JiraDataContext'; 
 
 export function JiraSidebarContent() {
   const { toast } = useToast();
   const jiraDataContext = useContext(JiraDataContext);
 
   if (!jiraDataContext) {
-    // This should ideally not happen if SidebarProvider wraps this component correctly
     throw new Error("JiraSidebarContent must be used within a JiraDataProvider");
   }
   const { setIssues, setIsLoading: setContextIsLoading, setError: setContextError } = jiraDataContext;
@@ -43,10 +48,33 @@ export function JiraSidebarContent() {
   
   const [queryType, setQueryType] = useState<'jql' | 'project'>('project');
   const [jqlQuery, setJqlQuery] = useState('');
-  const [project, setProject] = useState(''); // Stores project key
+  const [projectKey, setProjectKey] = useState(''); // Stores project key
   const [dateRange, setDateRange] = React.useState<{ from?: Date; to?: Date }>({});
-  const [issueType, setIssueType] = useState<string>('all'); // 'all' or specific type like 'Bug'
+  const [issueType, setIssueType] = useState<string>('all'); 
   const [isFetching, setIsFetching] = useState(false);
+
+  const [jiraProjects, setJiraProjects] = useState<JiraProjectDetail[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  useEffect(() => {
+    if (jiraUrl && email && apiToken) {
+      const loadProjects = async () => {
+        setProjectsLoading(true);
+        const result = await fetchJiraProjects({ jiraUrl, email, apiToken });
+        if (result.success && result.data) {
+          setJiraProjects(result.data);
+        } else {
+          toast({ title: 'Failed to fetch projects', description: result.error || "Could not load project list.", variant: 'destructive' });
+          setJiraProjects([]); 
+        }
+        setProjectsLoading(false);
+      };
+      loadProjects();
+    } else {
+      setJiraProjects([]); // Clear projects if config is incomplete
+    }
+  }, [jiraUrl, email, apiToken, toast]);
+
 
   const handleFetchIssues = async () => {
     if (!jiraUrl || !email || !apiToken) {
@@ -57,10 +85,10 @@ export function JiraSidebarContent() {
       });
       return;
     }
-    if (queryType === 'project' && !project) {
+    if (queryType === 'project' && !projectKey) {
         toast({
             title: 'Project Missing',
-            description: 'Please select a project when using Project/Date filter.',
+            description: 'Please select or enter a project key when using Project/Date filter.',
             variant: 'destructive',
         });
         return;
@@ -74,11 +102,10 @@ export function JiraSidebarContent() {
         return;
     }
 
-
     setIsFetching(true);
     setContextIsLoading(true);
     setContextError(null);
-    setIssues([]); // Clear previous issues
+    setIssues([]); 
 
     const config: JiraConfig = { jiraUrl, email, apiToken };
     
@@ -86,19 +113,15 @@ export function JiraSidebarContent() {
 
     if (queryType === 'jql') {
       filters.jqlQuery = jqlQuery;
-    } else { // queryType === 'project'
-      filters.project = project;
+    } else { 
+      filters.project = projectKey;
       filters.dateRange = dateRange.from || dateRange.to ? dateRange : undefined;
     }
     
     const params = { ...config, ...filters };
-
-    console.log('Fetching issues with params:', params);
     
     try {
       const result = await fetchJiraIssues(params);
-      console.log('Server Action result:', result);
-
       if (result.success && result.data) {
         toast({ title: 'Success', description: result.message || `Fetched ${result.data.length} issues successfully.` });
         setIssues(result.data);
@@ -108,7 +131,6 @@ export function JiraSidebarContent() {
         setIssues([]);
       }
     } catch (error: any) {
-      console.error('Failed to call fetchJiraIssues action:', error);
       const errorMessage = error.message || 'Could not connect to the server.';
       toast({ title: 'Client Error', description: errorMessage, variant: 'destructive' });
       setContextError(errorMessage);
@@ -118,15 +140,6 @@ export function JiraSidebarContent() {
       setContextIsLoading(false);
     }
   };
-
-  // Mock project list - replace with dynamic fetching if needed
-  const mockProjects = [
-    { key: "PROJA", name: "Project Alpha" },
-    { key: "PROJB", name: "Project Beta" },
-    { key: "PROJC", name: "Project Charlie" },
-    { key: "MOCKPRJ", name: "Mock Project" },
-    { key: "OTHER", name: "Other Project" },
-  ];
 
   return (
     <>
@@ -138,136 +151,152 @@ export function JiraSidebarContent() {
       </SidebarHeader>
 
       <UISidebarContent className="p-0">
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4">Jira Configuration</SidebarGroupLabel>
-          <div className="space-y-3 px-4">
-            <div>
-              <Label htmlFor="jira-url">Jira URL</Label>
-              <Input id="jira-url" placeholder="https://your-domain.atlassian.net" value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="api-token">API Token</Label>
-              <Input id="api-token" type="password" placeholder="Your Jira API Token" value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
-            </div>
-          </div>
-        </SidebarGroup>
-        
-        <SidebarSeparator className="my-4"/>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4">Filters</SidebarGroupLabel>
-          <div className="space-y-4 px-4">
-            <RadioGroup value={queryType} onValueChange={(value: 'jql' | 'project') => setQueryType(value)} className="flex space-x-2">
-              <div className="flex items-center space-x-1">
-                <RadioGroupItem value="jql" id="jql" />
-                <Label htmlFor="jql">JQL</Label>
-              </div>
-              <div className="flex items-center space-x-1">
-                <RadioGroupItem value="project" id="project-date" />
-                <Label htmlFor="project-date">Project/Date</Label>
-              </div>
-            </RadioGroup>
-
-            {queryType === 'jql' && (
+        <Accordion type="multiple" defaultValue={['config', 'filters']} className="w-full">
+          <AccordionItem value="config">
+            <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">Jira Configuration</AccordionTrigger>
+            <AccordionContent className="px-4 pb-4 space-y-3">
               <div>
-                <Label htmlFor="jql-query">JQL Query</Label>
-                <Textarea id="jql-query" placeholder="project = 'MyProject' AND status = 'Done'" value={jqlQuery} onChange={(e) => setJqlQuery(e.target.value)} />
+                <Label htmlFor="jira-url">Jira URL</Label>
+                <Input id="jira-url" placeholder="https://your-domain.atlassian.net" value={jiraUrl} onChange={(e) => setJiraUrl(e.target.value)} />
               </div>
-            )}
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="api-token">API Token</Label>
+                <Input id="api-token" type="password" placeholder="Your Jira API Token" value={apiToken} onChange={(e) => setApiToken(e.target.value)} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          
+          <AccordionItem value="filters">
+            <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">Filters</AccordionTrigger>
+            <AccordionContent className="px-4 pb-4 space-y-4">
+              <RadioGroup value={queryType} onValueChange={(value: 'jql' | 'project') => setQueryType(value)} className="flex space-x-2">
+                <div className="flex items-center space-x-1">
+                  <RadioGroupItem value="jql" id="jql" />
+                  <Label htmlFor="jql">JQL</Label>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <RadioGroupItem value="project" id="project-date" />
+                  <Label htmlFor="project-date">Project/Date</Label>
+                </div>
+              </RadioGroup>
 
-            {queryType === 'project' && (
-              <div className="space-y-3">
+              {queryType === 'jql' && (
                 <div>
-                  <Label htmlFor="project-select">Project</Label>
-                   <Select value={project} onValueChange={setProject}>
-                    <SelectTrigger id="project-select">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockProjects.map(p => (
-                        <SelectItem key={p.key} value={p.key}>{p.name} ({p.key})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="jql-query">JQL Query</Label>
+                  <Textarea id="jql-query" placeholder="project = 'MyProject' AND status = 'Done'" value={jqlQuery} onChange={(e) => setJqlQuery(e.target.value)} />
                 </div>
-                <div>
-                  <Label htmlFor="date-range">Date Range (Created)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="date-range"
-                        variant={"outline"}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !dateRange.from && !dateRange.to && "text-muted-foreground"
+              )}
+
+              {queryType === 'project' && (
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="project-select">Project Key</Label>
+                     <Select value={projectKey} onValueChange={setProjectKey} disabled={projectsLoading}>
+                      <SelectTrigger id="project-select">
+                        <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project or type key"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jiraProjects.length > 0 ? (
+                          jiraProjects.map(p => (
+                            <SelectItem key={p.key} value={p.key}>{p.name} ({p.key})</SelectItem>
+                          ))
+                        ) : (
+                          !projectsLoading && <SelectItem value="" disabled>No projects found</SelectItem>
                         )}
-                      >
-                        <Icons.date className="mr-2 h-4 w-4" />
-                        {dateRange.from ? (
-                          dateRange.to ? (
-                            <>
-                              {format(dateRange.from, "LLL dd, y")} -{" "}
-                              {format(dateRange.to, "LLL dd, y")}
-                            </>
-                          ) : (
-                            format(dateRange.from, "LLL dd, y")
-                          )
-                        ) : dateRange.to ? (
-                            `Until ${format(dateRange.to, "LLL dd, y")}`
-                        )
-                        : (
-                          <span>Pick a date range</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange.from}
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        numberOfMonths={2}
+                      </SelectContent>
+                    </Select>
+                     {/* Allow manual input as well, or rely on select only */}
+                     <Input 
+                        className="mt-1"
+                        placeholder="Or type project key e.g., PROJ" 
+                        value={projectKey} 
+                        onChange={(e) => setProjectKey(e.target.value.toUpperCase())} 
                       />
-                    </PopoverContent>
-                  </Popover>
+                  </div>
+                  <div>
+                    <Label htmlFor="date-range">Date Range (Created)</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="date-range"
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !dateRange.from && !dateRange.to && "text-muted-foreground"
+                          )}
+                        >
+                          <Icons.date className="mr-2 h-4 w-4" />
+                          {dateRange.from ? (
+                            dateRange.to ? (
+                              <>
+                                {format(dateRange.from, "LLL dd, y")} -{" "}
+                                {format(dateRange.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(dateRange.from, "LLL dd, y")
+                            )
+                          ) : dateRange.to ? (
+                              `Until ${format(dateRange.to, "LLL dd, y")}`
+                          )
+                          : (
+                            <span>Pick a date range</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={dateRange.from}
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
+              )}
+              
+              <div>
+                <Label htmlFor="issue-type-filter">Issue Type</Label>
+                <Select value={issueType} onValueChange={setIssueType}>
+                  <SelectTrigger id="issue-type-filter">
+                    <SelectValue placeholder="Filter by issue type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Issue Types</SelectItem>
+                    <SelectItem value="Bug">Bug</SelectItem>
+                    <SelectItem value="Story">Story</SelectItem>
+                    <SelectItem value="Task">Task</SelectItem>
+                    <SelectItem value="Epic">Epic</SelectItem>
+                    <SelectItem value="Sub-task">Sub-task</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            
-            <div>
-              <Label htmlFor="issue-type-filter">Issue Type</Label>
-              <Select value={issueType} onValueChange={setIssueType}>
-                <SelectTrigger id="issue-type-filter">
-                  <SelectValue placeholder="Filter by issue type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Issue Types</SelectItem>
-                  <SelectItem value="Bug">Bug</SelectItem>
-                  <SelectItem value="Story">Story</SelectItem>
-                  <SelectItem value="Task">Task</SelectItem>
-                  <SelectItem value="Epic">Epic</SelectItem>
-                  <SelectItem value="Sub-task">Sub-task</SelectItem>
-                  {/* Add more issue types or fetch dynamically */}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </SidebarGroup>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </UISidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <Button onClick={handleFetchIssues} className="w-full" disabled={isFetching || jiraDataContext.isLoading}>
+        <Button onClick={handleFetchIssues} className="w-full" disabled={isFetching || jiraDataContext.isLoading || projectsLoading}>
           {isFetching || jiraDataContext.isLoading ? (
             <>
               <Icons.loader className="mr-2 h-4 w-4 animate-spin" />
-              Fetching...
+              Fetching Issues...
             </>
-          ) : (
+          ) : projectsLoading ? (
+             <>
+              <Icons.loader className="mr-2 h-4 w-4 animate-spin" />
+              Loading Projects...
+            </>
+          )
+          : (
             'Fetch Issues'
           )}
         </Button>

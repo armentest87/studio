@@ -1,9 +1,22 @@
 
+
 export interface JiraProject {
   id: string;
   key: string;
   name: string;
 }
+
+// For fetching project list from /rest/api/3/project
+export interface JiraProjectDetail {
+  id: string;
+  key: string;
+  name: string;
+  avatarUrls?: { '48x48'?: string };
+  projectTypeKey?: string;
+  simplified?: boolean;
+  style?: string;
+}
+
 
 export interface JiraUser {
   accountId?: string;
@@ -157,6 +170,13 @@ export interface JiraFilters {
 export interface FetchJiraIssuesResponse {
   success: boolean;
   data?: JiraIssue[] | null;
+  error?: string | null;
+  message?: string;
+}
+
+export interface FetchJiraProjectsResponse {
+  success: boolean;
+  data?: JiraProjectDetail[] | null;
   error?: string | null;
   message?: string;
 }
