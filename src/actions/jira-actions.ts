@@ -74,7 +74,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   //   "customfield_10007", // Example for Sprint field (might vary)
   //   "customfield_12326", // Example for Story Points field (might vary)
   //   // Add other custom field IDs you need, e.g., "customfield_XXXXX"
-  //   "*navigable" // Gets all fields user can see, useful for discovery but can be verbose
+  //   // "*navigable" // Gets all fields user can see, useful for discovery but can be verbose
   // ];
 
   try {
@@ -165,15 +165,15 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         reporter: { displayName: 'Client User', emailAddress: 'client@example.com' },
         priority: {id: '3', name: 'Medium'},
         labels: ['mock', 'backend'],
-        created: new Date(now.setDate(now.getDate() - 5)).toISOString(),
-        updated: new Date(now.setDate(now.getDate() - 1)).toISOString(),
+        created: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
+        updated: new Date(new Date(now).setDate(now.getDate() - 1)).toISOString(),
         timeoriginalestimate: 28800, // 8 hours in seconds
         timespent: 14400, // 4 hours in seconds
         timeestimate: 14400, // 4 hours remaining
         storyPoints: 5,
         customfield_12326: 5,
-        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(now.setDate(now.getDate() - 7)).toISOString(), endDate: new Date(now.setDate(now.getDate() + 7)).toISOString() },
-        customfield_10007: [{id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(now.setDate(now.getDate() - 7)).toISOString(), endDate: new Date(now.setDate(now.getDate() + 7)).toISOString() }]
+        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
+        customfield_10007: [{id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 14)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 0)).toISOString() }] // Example raw data
       },
       { 
         id: 'MOCK-102', 
@@ -182,12 +182,12 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         type: { id: '10002', name: 'Bug', iconUrl: '...' },
         project: { id: '10000', key: project || 'MOCKPRJ', name: project ? `Project ${project}` : 'Mock Project' },
         assignee: { displayName: 'Dev Team', emailAddress: 'dev@example.com' },
-        created: new Date(now.setDate(now.getDate() - 10)).toISOString(),
-        updated: new Date(now.setDate(now.getDate() - 2)).toISOString(),
+        created: new Date(new Date(now).setDate(now.getDate() - 10)).toISOString(),
+        updated: new Date(new Date(now).setDate(now.getDate() - 2)).toISOString(),
         resolutiondate: null,
         storyPoints: 3,
         customfield_12326: 3,
-        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(now.setDate(now.getDate() - 7)).toISOString(), endDate: new Date(now.setDate(now.getDate() + 7)).toISOString() },
+        sprint: {id: 1, name: 'Current Sprint Mock', state: 'active', startDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() + 7)).toISOString() },
       },
       { 
         id: 'MOCK-103', 
@@ -196,17 +196,17 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         type: { id: '10001', name: 'Story', iconUrl: '...' },
         project: { id: '10001', key: 'OTHER', name: 'Other Project' },
         assignee: { displayName: 'Server Admin', emailAddress: 'admin@example.com' },
-        created: new Date(now.setDate(now.getDate() - 20)).toISOString(),
-        updated: new Date(now.setDate(now.getDate() - 5)).toISOString(),
-        resolutiondate: new Date(now.setDate(now.getDate() - 5)).toISOString(),
+        created: new Date(new Date(now).setDate(now.getDate() - 20)).toISOString(),
+        updated: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
+        resolutiondate: new Date(new Date(now).setDate(now.getDate() - 5)).toISOString(),
         timeoriginalestimate: 72000, // 20 hours
         timespent: 72000,
         timeestimate: 0,
         storyPoints: 8,
         customfield_12326: 8,
-        sprint: {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(now.setDate(now.getDate() - 14)).toISOString(), endDate: new Date(now.setDate(now.getDate() - 0)).toISOString(), completeDate: new Date(now.setDate(now.getDate() - 0)).toISOString() },
+        sprint: {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() },
         closedSprints: [
-            {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(now.setDate(now.getDate() - 14)).toISOString(), endDate: new Date(now.setDate(now.getDate() - 0)).toISOString(), completeDate: new Date(now.setDate(now.getDate() - 0)).toISOString() }
+            {id: 0, name: 'Previous Sprint Mock', state: 'closed', startDate: new Date(new Date(now).setDate(now.getDate() - 21)).toISOString(), endDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString(), completeDate: new Date(new Date(now).setDate(now.getDate() - 7)).toISOString() }
         ]
       },
     ];

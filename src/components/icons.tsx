@@ -58,8 +58,10 @@ export const Icons = {
   ),
   dashboard: LayoutDashboard,
   agile: BarChart3,
-  team: Users,
-  quality: AlertTriangle,
+  team: Users, // Retains Users as team for existing dashboard layout
+  users: Users, // Adds specific 'users' for UserWorkloadReportTab
+  quality: AlertTriangle, // Retains AlertTriangle as quality
+  alertTriangle: AlertTriangle, // Adds specific 'alertTriangle' for OverviewTab
   custom: Settings2,
   advanced: ListFilter,
   userReport: FileText,
@@ -75,7 +77,8 @@ export const Icons = {
   workingHours: UserCheck,
   timeInStatus: Workflow,
   assigneeWorkload: Package,
-  taskCompletion: CheckCircle2,
+  taskCompletion: CheckCircle2, // Retains CheckCircle2 as taskCompletion
+  checkCircle2: CheckCircle2, // Adds specific 'checkCircle2' for OverviewTab
   bugTrends: XCircle,
   cfd: AreaChart, // Cumulative Flow Diagram
   customFieldDist: PieChart,
@@ -87,14 +90,11 @@ export const Icons = {
   filter: Filter,
   percent: Percent,
   lineChart: LineChart,
-  users: Users,
   github: Github,
   lifeBuoy: LifeBuoy,
   login: LogIn,
   logout: FileOutput,
-  checkCircle2: CheckCircle2,
-  alertTriangle: AlertTriangle,
-  loader: Loader2, // Added loader icon
+  loader: Loader2, 
 };
 
 export type IconName = keyof typeof Icons;
