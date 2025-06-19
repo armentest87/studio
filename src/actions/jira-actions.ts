@@ -76,9 +76,6 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     if (constructedJql) {
       constructedJql += ` AND issuetype = "${issueType}"`;
     } else {
-      // If only issueType is selected, it might be too broad.
-      // Consider requiring a project or JQL for standalone issueType filter.
-      // For now, allow it:
       constructedJql = `issuetype = "${issueType}"`;
     }
   }
@@ -93,9 +90,6 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   const authString = `${email}:${apiToken}`;
   const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
   
-  // Define the fields you want to fetch from Jira
-  // Note: customfield_XXXXX IDs are specific to your Jira instance.
-  // You might need to find the correct IDs for 'Sprint' and 'Story Points'.
   const fieldsToRequest = [
     "summary", "description", "status", "issuetype", "project", "assignee", "reporter",
     "priority", "labels", "components", "created", "updated", "resolutiondate",
@@ -107,53 +101,72 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     // "*navigable" // Gets all fields user can see, useful for discovery but can be verbose. Use with caution.
   ];
 
+  let allIssuesRaw: any[] = [];
+  let startAt = 0;
+  const maxResultsPerRequest = 100; // Jira default is 50, max is often 100 or higher depending on instance config
+  let totalIssuesFromResponse = 0;
+  let fetchedIssuesInBatch = 0;
+
   try {
-    // Actual API Call
-    const response = await fetch(jiraApiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
+    do {
+      const body = {
         jql: constructedJql,
         fields: fieldsToRequest,
-        startAt: 0,
-        maxResults: 1000, // Increased maxResults, but proper pagination is needed for >1000 issues.
-      }),
-    });
+        startAt: startAt,
+        maxResults: maxResultsPerRequest,
+      };
+      // console.log(`Fetching issues from Jira: startAt=${startAt}, maxResults=${maxResultsPerRequest}`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Jira API Error:', response.status, errorText);
-      // Try to parse errorText if it's JSON for more detailed messages from Jira
-      let detailedError = errorText;
-      try {
-        const jiraError = JSON.parse(errorText);
-        if (jiraError && jiraError.errorMessages && jiraError.errorMessages.length > 0) {
-            detailedError = jiraError.errorMessages.join('; ');
-        } else if (jiraError && jiraError.message) {
-            detailedError = jiraError.message;
-        }
-      } catch (parseError) {
-        // Ignore if not JSON
+      const response = await fetch(jiraApiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Jira API Error:', response.status, errorText);
+        let detailedError = errorText;
+        try {
+          const jiraError = JSON.parse(errorText);
+          if (jiraError && jiraError.errorMessages && jiraError.errorMessages.length > 0) {
+              detailedError = jiraError.errorMessages.join('; ');
+          } else if (jiraError && jiraError.message) {
+              detailedError = jiraError.message;
+          }
+        } catch (parseError) { /* Ignore if not JSON */ }
+        return { success: false, error: `Jira API request failed: ${response.statusText} (Status ${response.status}). ${detailedError}`, data: null };
       }
-      return { success: false, error: `Jira API request failed: ${response.statusText} (Status ${response.status}). ${detailedError}`, data: null };
-    }
 
-    const responseData = await response.json();
+      const responseData = await response.json();
+      if (!responseData.issues || responseData.issues.length === 0) {
+        fetchedIssuesInBatch = 0; // No more issues or empty batch
+      } else {
+        allIssuesRaw = allIssuesRaw.concat(responseData.issues);
+        fetchedIssuesInBatch = responseData.issues.length;
+      }
+      
+      totalIssuesFromResponse = responseData.total || 0;
+      startAt += fetchedIssuesInBatch;
+      
+      // console.log(`Fetched ${fetchedIssuesInBatch} issues. Total fetched so far: ${allIssuesRaw.length}. Total available: ${totalIssuesFromResponse}`);
 
-    const issues: JiraIssue[] = responseData.issues.map((issue: any) => {
+    } while (startAt < totalIssuesFromResponse && fetchedIssuesInBatch > 0); // Continue if there are more issues to fetch
+
+    // console.log(`Finished fetching. Total ${allIssuesRaw.length} issues retrieved from Jira.`);
+
+    const issues: JiraIssue[] = allIssuesRaw.map((issue: any) => {
       let sprintData: JiraSprint | null = null;
-      const rawSprintField = issue.fields.customfield_10007; // Adjust if your sprint field ID is different
+      const rawSprintField = issue.fields.customfield_10007; 
 
       if (rawSprintField && Array.isArray(rawSprintField) && rawSprintField.length > 0) {
           const parsedSprints = rawSprintField
             .map(s => {
                 if (typeof s === 'string') return parseSprintString(s);
-                // If it's already an object, assume it has the JiraSprint structure
-                // You might need to adapt this if the object structure is different
                 if (typeof s === 'object' && s !== null && s.id && s.name && s.state) {
                     return {
                         id: s.id,
@@ -169,13 +182,12 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
             })
             .filter(Boolean) as JiraSprint[];
             
-          // Prioritize active, then future, then most recently ended/defined if multiple sprints are associated
           sprintData = parsedSprints.find(s => s.state === 'active') || 
                         parsedSprints.find(s => s.state === 'future') || 
                         parsedSprints.sort((a,b) => {
-                            const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
-                            const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
-                            return dateB - dateA; // Sort descending by end date
+                            const dateA = a.endDate ? new Date(a.endDate).getTime() : (a.completeDate ? new Date(a.completeDate).getTime() : 0);
+                            const dateB = b.endDate ? new Date(b.endDate).getTime() : (b.completeDate ? new Date(b.completeDate).getTime() : 0);
+                            return dateB - dateA; 
                         })[0] || 
                         null;
       }
@@ -184,7 +196,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         id: issue.key,
         self: issue.self,
         summary: issue.fields.summary,
-        description: issue.fields.description,
+        description: issue.fields.description, // Can be Atlassian Document Format (ADF)
         status: issue.fields.status,
         type: issue.fields.issuetype,
         project: issue.fields.project,
@@ -200,21 +212,24 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         timeoriginalestimate: issue.fields.timeoriginalestimate,
         timespent: issue.fields.timespent,
         timeestimate: issue.fields.timeestimate,
-        aggregatetimeoriginalestimate: issue.fields.aggregatetimespent,
+        aggregatetimeoriginalestimate: issue.fields.aggregatetimeoriginalestimate, // Corrected from aggregatetimespent
+        aggregatetimespent: issue.fields.aggregatetimespent, 
         aggregatetimeestimate: issue.fields.aggregatetimeestimate,
 
-        worklog: issue.fields.worklog,
+        worklog: issue.fields.worklog, // This usually needs another call to get full worklog details
         parent: issue.fields.parent,
         
         sprint: sprintData,
-        closedSprints: rawSprintField && Array.isArray(rawSprintField) ? rawSprintField.map(s => typeof s === 'string' ? parseSprintString(s) : s).filter(s => s && s.state === 'closed') as JiraSprint[] : [],
-        customfield_10007: rawSprintField, // Keep raw data if needed
+        closedSprints: rawSprintField && Array.isArray(rawSprintField) ? 
+          rawSprintField.map(s => {
+            if (typeof s === 'string') return parseSprintString(s);
+            if (typeof s === 'object' && s !== null && s.id && s.name && s.state) return s as JiraSprint; // Assuming structure matches
+            return null;
+          }).filter(s => s && s.state === 'closed') as JiraSprint[] : [],
+        customfield_10007: rawSprintField, // Keep raw sprint data
 
-        storyPoints: issue.fields.customfield_12326 || null, // Adjust if your story points field ID is different
-        customfield_12326: issue.fields.customfield_12326, // Keep raw data
-
-        // You can add more specific custom field mappings here if needed
-        // e.g. customFieldXYZ: issue.fields.customfield_XXXXX 
+        storyPoints: issue.fields.customfield_12326 || null, 
+        customfield_12326: issue.fields.customfield_12326, // Keep raw story points
       };
     });
 
@@ -228,7 +243,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     console.error('Error in fetchJiraIssues server action:', error);
     let errorMessage = 'An unknown error occurred on the server.';
     if (error.message) {
-        if (error.message.toLowerCase().includes('fetch')) { // Broader check for fetch-related errors
+        if (error.message.toLowerCase().includes('fetch')) { 
             errorMessage = 'Network error: Could not connect to Jira. Please check the Jira URL and your network connection. Also, verify API token permissions and that the Jira instance is accessible.';
         } else {
             errorMessage = `An internal server error occurred: ${error.message}`;
@@ -237,5 +252,4 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     return { success: false, error: errorMessage, data: null };
   }
 }
-
     
