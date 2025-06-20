@@ -72,4 +72,4 @@ Open [http://localhost:9002](http://localhost:9002) (or the port specified in yo
 -   Implement actual Jira API calls in `src/actions/jira-actions.ts` to fetch real data.
 -   Connect the dashboard tabs to the `JiraDataContext` to display and visualize the fetched data dynamically.
 -   Expand upon the existing mock visualizations with real data transformations and Plotly/Recharts integrations.
-```
+``` 

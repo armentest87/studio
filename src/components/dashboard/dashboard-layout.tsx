@@ -29,7 +29,7 @@ const ALL_TABS_CONFIG = [
     label: "Overview",
     Icon: Icons.overview,
     Component: OverviewTab,
-    isDataSufficient: (issues: JiraIssue[]) => issues && issues.length > 0
+    isDataSufficient: (issues: JiraIssue[]) => issues && issues.length > 0,
   },
   {
     value: "agile",
@@ -37,9 +37,10 @@ const ALL_TABS_CONFIG = [
     Icon: Icons.agile,
     Component: AgileMetricsTab,
     isDataSufficient: (issues: JiraIssue[]) => issues.some(i =>
-        (i.sprint && (i.storyPoints || i.timespent)) || 
-        (i.status?.statusCategory?.key === 'done' && i.created && i.resolutiondate) 
-    )
+        (i.sprint && (i.storyPoints || i.timespent)) || // Story points or time spent for velocity
+        (i.status?.statusCategory?.key === 'done' && i.created && i.resolutiondate) || // For lead/cycle time
+        (i.resolutiondate && i.status?.statusCategory?.key === 'done') // For throughput
+    ),
   },
   {
     value: "team",
@@ -47,37 +48,37 @@ const ALL_TABS_CONFIG = [
     Icon: Icons.team,
     Component: TeamWorkloadTab,
     isDataSufficient: (issues: JiraIssue[]) => issues.some(i =>
-        (i.assignee && i.status?.statusCategory?.key !== 'done') || 
-        (i.status?.statusCategory?.key === 'done' && i.resolutiondate) 
-    )
+        (i.assignee && i.status?.statusCategory?.key !== 'done') || // Open issues by assignee
+        (i.status?.statusCategory?.key === 'done' && i.resolutiondate) // For completion rate
+    ),
   },
   {
     value: "quality",
     label: "Quality Analysis",
-    Icon: Icons.bugTrends,
+    Icon: Icons.bugTrends, // Corrected icon
     Component: QualityAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.type?.name?.toLowerCase() === 'bug' && (i.created || i.resolutiondate))
+    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.type?.name?.toLowerCase() === 'bug' && (i.created || i.resolutiondate)),
   },
   {
     value: "custom",
     label: "Custom Analysis",
     Icon: Icons.custom,
     Component: CustomAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[]) => issues && issues.length > 0
+    isDataSufficient: (issues: JiraIssue[]) => issues && issues.length > 0,
   },
   {
     value: "advanced",
     label: "Advanced Metrics",
     Icon: Icons.advanced,
-    Component: AdvancedMetricsTab, 
-    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.created && i.status)
+    Component: AdvancedMetricsTab,
+    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.created && i.status && i.status.statusCategory),
   },
   {
     value: "userReport",
     label: "User Workload",
     Icon: Icons.userReport,
     Component: UserWorkloadReportTab,
-    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.assignee && (i.timeoriginalestimate || i.timespent || i.timeestimate))
+    isDataSufficient: (issues: JiraIssue[]) => issues.some(i => i.assignee && (i.timeoriginalestimate || i.timespent || i.timeestimate)),
   },
 ];
 
@@ -88,55 +89,73 @@ function DashboardContent() {
   if (!context) {
     return <div className="p-4 text-red-500">Error: JiraDataContext not available.</div>;
   }
-  const { issues, isLoading } = context;
+  const { issues, isLoading, error } = context;
 
   const availableTabs = useMemo(() => {
     if (isLoading && (!issues || issues.length === 0)) {
         return ALL_TABS_CONFIG.filter(tab => tab.value === "overview");
     }
     if (!issues || issues.length === 0) {
+      // If no issues, only "Overview" (if it deems itself sufficient, which it does for empty arrays)
+      // and "Custom Analysis" (also generally available) might be shown.
+      // Or more simply, always show overview if no issues.
       return ALL_TABS_CONFIG.filter(tab => tab.value === "overview");
     }
     return ALL_TABS_CONFIG.filter(tab => tab.isDataSufficient(issues));
   }, [issues, isLoading]);
 
-  const [activeTab, setActiveTab] = useState(ALL_TABS_CONFIG[0].value);
+  // Start with 'overview' and let useEffect adjust if needed
+  const [activeTab, setActiveTab] = useState<string>("overview");
 
   useEffect(() => {
-    const activeTabIsAvailable = availableTabs.some(t => t.value === activeTab);
+    const currentTabIsInAvailableList = availableTabs.some(tab => tab.value === activeTab);
 
     if (availableTabs.length > 0) {
-      if (!activeTabIsAvailable) {
+      if (!currentTabIsInAvailableList) {
+        // If current activeTab is no longer sufficient or not in the list,
+        // switch to the first available tab.
         setActiveTab(availableTabs[0].value);
       }
-    } else if (ALL_TABS_CONFIG.length > 0) { 
-        if (activeTab !== ALL_TABS_CONFIG[0].value) {
-            setActiveTab(ALL_TABS_CONFIG[0].value);
-        }
+      // If current activeTab is still in the list, no change needed.
+    } else if (ALL_TABS_CONFIG.length > 0) {
+      // This case means `availableTabs` is empty. This could happen if `issues` array is empty
+      // and only "overview" was filtered in `availableTabs` but somehow its `isSufficient` failed.
+      // Or if ALL_TABS_CONFIG itself was empty (which is an app config error).
+      // Fallback to the first tab in the master list if the current active one isn't it.
+      if (activeTab !== ALL_TABS_CONFIG[0].value) {
+          setActiveTab(ALL_TABS_CONFIG[0].value);
+      }
     }
-  }, [availableTabs, activeTab, issues]);
-
+    // If availableTabs is empty AND ALL_TABS_CONFIG is empty, activeTab remains,
+    // though rendering will likely show "No tabs configured".
+  }, [availableTabs, activeTab]);
 
   const currentTabConfig = useMemo(() => {
-    // Try to find the active tab in the list of currently available tabs
     let config = availableTabs.find(tab => tab.value === activeTab);
-  
-    // If not found in available (e.g., data changed and tab became unavailable),
-    // try to find it in the full list of all configured tabs.
+
     if (!config) {
-      config = ALL_TABS_CONFIG.find(tab => tab.value === activeTab);
+      if (availableTabs.length > 0) {
+        config = availableTabs[0];
+      } else if (ALL_TABS_CONFIG.length > 0) {
+        config = ALL_TABS_CONFIG[0]; // Default to the first tab in the master list
+      } else {
+        // Absolute fallback if ALL_TABS_CONFIG is somehow empty
+        return {
+          value: "error_fallback",
+          label: "Error",
+          Icon: Icons.alertTriangle,
+          Component: () => <div className="p-4 text-center">No tabs configured.</div>,
+          isDataSufficient: () => true, // Make it always renderable
+        };
+      }
     }
-  
-    // If still not found (e.g. activeTab was some invalid value),
-    // default to the first available tab if there are any.
-    if (!config && availableTabs.length > 0) {
-      config = availableTabs[0];
-    }
-  
-    // As an ultimate fallback, default to the first tab in the overall configuration.
-    // This ensures 'config' is always an object from ALL_TABS_CONFIG.
-    return config || ALL_TABS_CONFIG[0];
+    return config;
   }, [activeTab, availableTabs]);
+  
+  // Defensive check, though the logic above should always provide a config if ALL_TABS_CONFIG is not empty.
+  if (!currentTabConfig) {
+     return <div className="p-4 text-red-500">Error: Could not determine current tab configuration. (Defensive Fallback)</div>;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -148,7 +167,7 @@ function DashboardContent() {
           <SidebarTrigger className="md:hidden" />
           <div className="flex-1">
             <h1 className="text-lg font-semibold font-headline">
-              {currentTabConfig?.label || "JiraViz Dashboard"}
+              {currentTabConfig.label || "JiraViz Dashboard"}
             </h1>
           </div>
         </header>
@@ -172,7 +191,7 @@ function DashboardContent() {
                       <span className={`${sidebarState === 'collapsed' ? 'md:hidden' : ''}`}>{tab.label}</span>
                     </TabsTrigger>
                   ))}
-                  {/* If no tabs are available due to data insufficiency, show the default tab (Overview) */}
+                  {/* Fallback to show at least the 'Overview' tab if availableTabs somehow became empty but ALL_TABS_CONFIG exists */}
                   {availableTabs.length === 0 && ALL_TABS_CONFIG.length > 0 && (
                      <TabsTrigger
                       key={ALL_TABS_CONFIG[0].value}
@@ -185,30 +204,27 @@ function DashboardContent() {
                   )}
                 </TabsList>
               </ScrollArea>
+
+              {/* Render the content for the currently determined tab config */}
+              <TabsContent value={currentTabConfig.value} className="mt-4">
+                 <currentTabConfig.Component />
+              </TabsContent>
               
-              {availableTabs.map(tab => (
-                <TabsContent key={tab.value} value={tab.value} className="mt-4">
-                  {/* Ensure that the activeTab is indeed the one we are rendering, or it's the only one */}
-                  {activeTab === tab.value || availableTabs.length === 1 ? <tab.Component /> : null}
-                </TabsContent>
-              ))}
-
-              {/* Fallback if activeTab is somehow not in availableTabs or no tabs are available */}
-              {(!availableTabs.find(t => t.value === activeTab) || availableTabs.length === 0) && ALL_TABS_CONFIG.length > 0 && (
-                <TabsContent key={ALL_TABS_CONFIG[0].value} value={ALL_TABS_CONFIG[0].value} className="mt-4">
-                    <ALL_TABS_CONFIG[0].Component />
-                </TabsContent>
-              )}
-
+              {/* Messages for data states */}
               {availableTabs.length === 0 && !isLoading && issues && issues.length > 0 && (
-                 <div className="p-4 text-center text-muted-foreground">
-                    The fetched data is insufficient for any specific metric tabs. Displaying Overview.
+                 <div className="p-4 mt-4 text-center text-muted-foreground">
+                    The fetched data is insufficient for specific metric tabs. Displaying Overview.
                  </div>
               )}
-               {availableTabs.length === 0 && !isLoading && (!issues || issues.length === 0) && (
-                 <div className="p-4 text-center text-muted-foreground">
+               {availableTabs.length === 0 && !isLoading && (!issues || issues.length === 0) && !error &&(
+                 <div className="p-4 mt-4 text-center text-muted-foreground">
                     No data available. Please fetch issues using the sidebar.
                  </div>
+              )}
+              {error && (
+                <div className="p-4 mt-4 text-center text-red-500">
+                    Error fetching data: {error}
+                </div>
               )}
             </Tabs>
           )}
