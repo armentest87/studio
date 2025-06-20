@@ -25,134 +25,70 @@ import { UserWorkloadReportTab } from './user-workload-report-tab';
 import { JiraDataProvider, JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
 
-// Define ALL_TABS_CONFIG at the top level of the module
-const ALL_TABS_CONFIG = [
+type TabConfig = {
+  value: string;
+  label: string;
+  Icon: React.ElementType; // Lucide icon
+  Component: React.ComponentType<any>; // React component for the tab content
+  isDataSufficient: (issues: JiraIssue[] | null | undefined) => boolean;
+};
+
+const ALL_TABS_CONFIG: TabConfig[] = [
   {
     value: "overview",
     label: "Overview",
     Icon: Icons.overview,
     Component: OverviewTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      return !!(issuesArg && issuesArg.length > 0);
-    },
+    isDataSufficient: () => true
   },
   {
     value: "agile",
     label: "Agile Metrics",
     Icon: Icons.agile,
     Component: AgileMetricsTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (!issuesArg || issuesArg.length === 0) {
-        return false;
-      }
-      return issuesArg.some((issue: JiraIssue) => {
-        const hasStoryPointsValid = (typeof issue.storyPoints === 'number' && issue.storyPoints > 0);
-        const hasTimeSpentValid = (typeof issue.timespent === 'number' && issue.timespent > 0);
-        
-        let sprintEffortSufficient = false;
-        if (issue.sprint) {
-          if (hasStoryPointsValid || hasTimeSpentValid) {
-            sprintEffortSufficient = true;
-          }
-        }
-
-        let isResolvedWithDates = false;
-        if (issue.status?.statusCategory?.key === 'done' && issue.created && issue.resolutiondate) {
-            isResolvedWithDates = true;
-        }
-        
-        return (sprintEffortSufficient || isResolvedWithDates);
-      });
-    },
+    isDataSufficient: () => true
   },
   {
     value: "team",
     label: "Team Workload",
     Icon: Icons.team,
     Component: TeamWorkloadTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (!issuesArg || issuesArg.length === 0) {
-        return false;
-      }
-      return issuesArg.some((issue: JiraIssue) => {
-        const hasOpenAssignedIssue = !!(issue.assignee && issue.status?.statusCategory?.key !== 'done');
-        const hasResolvedIssue = !!(issue.status?.statusCategory?.key === 'done' && issue.resolutiondate);
-        return (hasOpenAssignedIssue || hasResolvedIssue);
-      });
-    },
+    isDataSufficient: () => true
   },
   {
     value: "quality",
     label: "Quality Analysis",
     Icon: Icons.bugTrends,
     Component: QualityAnalysisTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (!issuesArg || issuesArg.length === 0) {
-        return false;
-      }
-      return issuesArg.some((issue: JiraIssue) => {
-        const isBug = issue.type?.name?.toLowerCase() === 'bug';
-        const hasRelevantDates = !!(issue.created || issue.resolutiondate);
-        return (isBug && hasRelevantDates);
-      });
-    },
+    isDataSufficient: () => true
   },
   {
     value: "custom",
     label: "Custom Analysis",
     Icon: Icons.custom,
     Component: CustomAnalysisTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (issuesArg && issuesArg.length > 0) {
-        return true;
-      }
-      return false;
-    },
+    isDataSufficient: () => true
   },
   {
     value: "advanced",
     label: "Advanced Metrics",
     Icon: Icons.advanced,
     Component: AdvancedMetricsTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (!issuesArg || issuesArg.length === 0) {
-        return false;
-      }
-      return issuesArg.some((issue: JiraIssue) => {
-        const hasCreatedDate = !!issue.created;
-        const hasStatusCategory = !!issue.status?.statusCategory;
-        return (hasCreatedDate && hasStatusCategory);
-      });
-    },
+    isDataSufficient: () => true
   },
   {
     value: "userReport",
     label: "User Workload",
     Icon: Icons.userReport,
     Component: UserWorkloadReportTab,
-    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      if (!issuesArg || issuesArg.length === 0) {
-        return false;
-      }
-      return issuesArg.some((issue: JiraIssue) => {
-        const hasAssignee = !!issue.assignee;
-        const hasTimeTracking =
-          ((typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
-          (typeof issue.timespent === 'number' && issue.timespent > 0) ||
-          (typeof issue.timeestimate === 'number' && issue.timeestimate > 0));
-        return (hasAssignee && hasTimeTracking); 
-      });
-    }
+    isDataSufficient: () => true
   }
 ];
-
-type TabConfig = typeof ALL_TABS_CONFIG[0]; // Helper type
 
 function DashboardContent() {
   const { state: sidebarState } = useSidebar();
   const context = useContext(JiraDataContext);
 
-  // Early return for critical context error
   if (!context) {
     console.error("JiraDataContext not available in DashboardContent.");
     return (
@@ -171,7 +107,6 @@ function DashboardContent() {
   const { issues, isLoading, error } = context;
   const [activeTab, setActiveTab] = useState<string>(ALL_TABS_CONFIG[0].value);
 
-  // Memoize availableTabs based on issues and loading state
   const availableTabs = useMemo<TabConfig[]>(() => {
     if (isLoading && (!issues || issues.length === 0)) {
       return [ALL_TABS_CONFIG[0]];
@@ -179,31 +114,29 @@ function DashboardContent() {
     if (!issues || issues.length === 0) {
       return [ALL_TABS_CONFIG[0]];
     }
-    const dataSufficientTabs = ALL_TABS_CONFIG.filter((tab: TabConfig) => tab.isDataSufficient(issues));
+    // Since isDataSufficient is always true for now, all tabs are available.
+    const dataSufficientTabs = ALL_TABS_CONFIG;
     if (dataSufficientTabs.length > 0) {
       return dataSufficientTabs;
     }
     return [ALL_TABS_CONFIG[0]]; // Default fallback
   }, [issues, isLoading]);
 
-  // Effect to synchronize activeTab if it's no longer available
   useEffect(() => {
     if (availableTabs.length > 0 && !availableTabs.find((tab: TabConfig) => tab.value === activeTab)) {
       setActiveTab(availableTabs[0].value);
     }
   }, [availableTabs, activeTab]);
 
-  // Memoize the current tab configuration
   const currentTabConfig = useMemo<TabConfig>(() => {
     const foundTab = availableTabs.find((tab: TabConfig) => tab.value === activeTab);
     if (foundTab) {
       return foundTab;
     }
-    // Fallback logic
     if (availableTabs.length > 0) {
       return availableTabs[0];
     }
-    return ALL_TABS_CONFIG[0]; // Absolute fallback
+    return ALL_TABS_CONFIG[0]; // Ultimate fallback
   }, [activeTab, availableTabs]);
 
   return (
@@ -269,13 +202,11 @@ function DashboardContent() {
                 </TabsList>
               </ScrollArea>
 
-              {/* Check if currentTabConfig and its Component are defined before rendering */}
               {currentTabConfig && currentTabConfig.Component && (
                  <TabsContent value={currentTabConfig.value} className="mt-4">
                    <currentTabConfig.Component />
                  </TabsContent>
               )}
-
 
               {availableTabs.length === 1 && availableTabs[0].value === "overview" && !isLoading && issues && issues.length > 0 && (
                  <div className="p-4 mt-4 text-center text-muted-foreground">
