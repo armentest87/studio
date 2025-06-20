@@ -44,11 +44,19 @@ const ALL_TABS_CONFIG = [
       if (!issues || issues.length === 0) {
         return false;
       }
-      return issues.some(i =>
-        (i.sprint && ( (typeof i.storyPoints === 'number' && i.storyPoints > 0) || (typeof i.timespent === 'number' && i.timespent > 0) ) ) ||
-        (i.status?.statusCategory?.key === 'done' && i.created && i.resolutiondate) ||
-        (i.resolutiondate && i.status?.statusCategory?.key === 'done')
-      );
+      return issues.some(issue => {
+        const hasSprintEffort = !!(
+          issue.sprint &&
+          ((typeof issue.storyPoints === 'number' && issue.storyPoints > 0) ||
+           (typeof issue.timespent === 'number' && issue.timespent > 0))
+        );
+        const isResolvedWithDates = !!(
+          issue.status?.statusCategory?.key === 'done' &&
+          issue.created &&
+          issue.resolutiondate
+        );
+        return hasSprintEffort || isResolvedWithDates;
+      });
     },
   },
   {
@@ -60,10 +68,11 @@ const ALL_TABS_CONFIG = [
       if (!issues || issues.length === 0) {
         return false;
       }
-      return issues.some(i =>
-        (i.assignee && i.status?.statusCategory?.key !== 'done') ||
-        (i.status?.statusCategory?.key === 'done' && i.resolutiondate)
-      );
+      return issues.some(issue => {
+        const hasOpenAssignedIssue = !!(issue.assignee && issue.status?.statusCategory?.key !== 'done');
+        const hasResolvedIssue = !!(issue.status?.statusCategory?.key === 'done' && issue.resolutiondate);
+        return hasOpenAssignedIssue || hasResolvedIssue;
+      });
     },
   },
   {
@@ -75,7 +84,11 @@ const ALL_TABS_CONFIG = [
       if (!issues || issues.length === 0) {
         return false;
       }
-      return issues.some(i => i.type?.name?.toLowerCase() === 'bug' && (i.created || i.resolutiondate));
+      return issues.some(issue => {
+        const isBug = issue.type?.name?.toLowerCase() === 'bug';
+        const hasRelevantDates = !!(issue.created || issue.resolutiondate);
+        return isBug && hasRelevantDates;
+      });
     },
   },
   {
@@ -96,7 +109,11 @@ const ALL_TABS_CONFIG = [
       if (!issues || issues.length === 0) {
         return false;
       }
-      return issues.some(i => i.created && i.status && i.status.statusCategory);
+      return issues.some(issue => {
+        const hasCreatedDate = !!issue.created;
+        const hasStatusCategory = !!issue.status?.statusCategory;
+        return hasCreatedDate && hasStatusCategory;
+      });
     },
   },
   {
@@ -108,11 +125,14 @@ const ALL_TABS_CONFIG = [
       if (!issues || issues.length === 0) {
         return false;
       }
-      return issues.some(i => i.assignee && (
-        (typeof i.timeoriginalestimate === 'number' && i.timeoriginalestimate > 0) ||
-        (typeof i.timespent === 'number' && i.timespent > 0) ||
-        (typeof i.timeestimate === 'number' && i.timeestimate > 0)
-      ));
+      return issues.some(issue => {
+        const hasAssignee = !!issue.assignee;
+        const hasTimeTracking =
+          (typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
+          (typeof issue.timespent === 'number' && issue.timespent > 0) ||
+          (typeof issue.timeestimate === 'number' && issue.timeestimate > 0);
+        return hasAssignee && hasTimeTracking;
+      });
     },
   }
 ];
@@ -141,7 +161,7 @@ function DashboardContent() {
 
   const availableTabs = useMemo(() => {
     if (isLoading && (!issues || issues.length === 0)) {
-      return [ALL_TABS_CONFIG[0]]; 
+      return [ALL_TABS_CONFIG[0]];
     }
     if (!issues || issues.length === 0) {
       return [ALL_TABS_CONFIG[0]];
@@ -150,18 +170,18 @@ function DashboardContent() {
     if (dataSufficientTabs.length > 0) {
       return dataSufficientTabs;
     }
-    return [ALL_TABS_CONFIG[0]]; 
+    return [ALL_TABS_CONFIG[0]];
   }, [issues, isLoading]);
 
   useEffect(() => {
     if (!availableTabs.find(tab => tab.value === activeTab)) {
-      setActiveTab(availableTabs.length > 0 ? availableTabs[0].value : ALL_TABS_CONFIG[0].value);
+      setActiveTab(availableTabs[0].value); // availableTabs is guaranteed to have at least one item
     }
-  }, [availableTabs, activeTab]); 
+  }, [availableTabs, activeTab]);
 
   const currentTabConfig = useMemo(() => {
     const foundTab = availableTabs.find(tab => tab.value === activeTab);
-    return foundTab || (availableTabs.length > 0 ? availableTabs[0] : ALL_TABS_CONFIG[0]);
+    return foundTab || availableTabs[0]; // Fallback to the first available tab
   }, [activeTab, availableTabs]);
 
   return (
@@ -226,11 +246,11 @@ function DashboardContent() {
                   ))}
                 </TabsList>
               </ScrollArea>
-              
+
               <TabsContent value={currentTabConfig.value} className="mt-4">
                 <currentTabConfig.Component />
               </TabsContent>
-              
+
               {availableTabs.length === 1 && availableTabs[0].value === "overview" && !isLoading && issues && issues.length > 0 && (
                  <div className="p-4 mt-4 text-center text-muted-foreground">
                     The fetched data is insufficient for other specific metric tabs. Displaying Overview.
