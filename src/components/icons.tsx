@@ -66,43 +66,47 @@ export const Icons = {
   dashboard: LayoutDashboard,
   // Old icons (some might be reused or serve as fallback)
   agile: BarChart3,
-  team: Users, 
-  quality: AlertTriangle, 
+  team: Users,
+  quality: AlertTriangle,
   custom: Settings2,
-  advanced: ListFilter, // Could be used for Tab 11
+  advanced: ListFilter,
   userReport: FileText,
   // Icons for old dashboard tabs
   velocity: TrendingUp,
   burndown: Target,
-  cycleTime: FileClock, // Could be used for Tab 4 (Time Tracking)
+  cycleTime: FileClock,
   throughput: Hourglass,
-  sprintCommitment: ClipboardList, // Could be used for Tab 9 (Project/Task Mgmt)
+  sprintCommitment: ClipboardList,
   rollingVelocity: History,
   scopeChange: GitMerge,
-  leadTime: Clock, // Could be used for Tab 3 (Date/Time)
+  leadTime: Clock,
   workingHours: UserCheck,
   timeInStatus: Workflow,
   assigneeWorkload: Package,
-  taskCompletion: CheckCircle2, 
-  bugTrends: Bug, 
-  cfd: AreaChart, 
-  customFieldDist: PieChart,
+  taskCompletion: CheckCircle2,
+  bugTrends: Bug,
+  cfd: AreaChart,
+  customFieldDist: PieChart, // This is different from `Icons.pieChart`
 
   // General utility icons
-  checkCircle2: CheckCircle2, 
-  alertTriangle: AlertTriangle, // Could be used for Tab 10 (Incident/Risk)
-  project: Projector, // Could be used for Tab 9 (Project/Task Mgmt)
-  date: CalendarDays, // Could be used for Tab 3 (Date/Time)
+  checkCircle2: CheckCircle2,
+  alertTriangle: AlertTriangle,
+  project: Projector,
+  date: CalendarDays,
   status: SlidersHorizontal,
   assignee: UserCircle2,
   table: TableIcon,
   filter: Filter,
   percent: Percent,
   lineChart: LineChart,
-  loader: Loader2, 
-  
+  loader: Loader2,
+  pieChart: PieChart, // Added mapping
+  barChart3: BarChart3, // Added mapping
+  ganttChartSquare: GanttChartSquare, // Added mapping
+  clipboardList: ClipboardList, // Added mapping
+
   // New Tab Specific Icons
-  generalInfo: GanttChartSquare, // Tab 1 (reusing overview concept)
+  generalInfo: GanttChartSquare, // Tab 1
   userRoleMgmt: Users, // Tab 2
   dateTimeInfo: CalendarDays, // Tab 3
   timeTracking: FileClock, // Tab 4
@@ -110,8 +114,8 @@ export const Icons = {
   designUI: Palette, // Tab 6
   gamingSetup: Gamepad2, // Tab 7
   humanResources: Briefcase, // Tab 8
-  projectTaskMgmt: ListChecks, // Tab 9 (using ListChecks as alternative to Projector/ClipboardList)
-  incidentRiskMgmt: ShieldAlert, // Tab 10 (using ShieldAlert as alternative to AlertTriangle)
+  projectTaskMgmt: ListChecks, // Tab 9
+  incidentRiskMgmt: ShieldAlert, // Tab 10
   otherCustomFields: ListFilter, // Tab 11
 
   // Fallback / other
