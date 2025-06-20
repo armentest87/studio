@@ -25,14 +25,15 @@ import { UserWorkloadReportTab } from './user-workload-report-tab';
 import { JiraDataProvider, JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
 
+// Define ALL_TABS_CONFIG at the top level of the module
 const ALL_TABS_CONFIG = [
   {
     value: "overview",
     label: "Overview",
     Icon: Icons.overview,
     Component: OverviewTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      return !!issues && issues.length > 0;
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      return !!issuesArg && issuesArg.length > 0;
     },
   },
   {
@@ -40,16 +41,15 @@ const ALL_TABS_CONFIG = [
     label: "Agile Metrics",
     Icon: Icons.agile,
     Component: AgileMetricsTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      if (!issues || issues.length === 0) {
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      if (!issuesArg || issuesArg.length === 0) {
         return false;
       }
-      return issues.some(issue => {
-        const hasSprintEffort = !!(
-          issue.sprint &&
-          ((typeof issue.storyPoints === 'number' && issue.storyPoints > 0) ||
-           (typeof issue.timespent === 'number' && issue.timespent > 0))
-        );
+      return issuesArg.some((issue: JiraIssue) => {
+        const hasStoryPoints = typeof issue.storyPoints === 'number' && issue.storyPoints > 0;
+        const hasTimeSpent = typeof issue.timespent === 'number' && issue.timespent > 0;
+        const hasSprintEffort = !!(issue.sprint && (hasStoryPoints || hasTimeSpent));
+
         const isResolvedWithDates = !!(
           issue.status?.statusCategory?.key === 'done' &&
           issue.created &&
@@ -64,11 +64,11 @@ const ALL_TABS_CONFIG = [
     label: "Team Workload",
     Icon: Icons.team,
     Component: TeamWorkloadTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      if (!issues || issues.length === 0) {
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      if (!issuesArg || issuesArg.length === 0) {
         return false;
       }
-      return issues.some(issue => {
+      return issuesArg.some((issue: JiraIssue) => {
         const hasOpenAssignedIssue = !!(issue.assignee && issue.status?.statusCategory?.key !== 'done');
         const hasResolvedIssue = !!(issue.status?.statusCategory?.key === 'done' && issue.resolutiondate);
         return hasOpenAssignedIssue || hasResolvedIssue;
@@ -80,11 +80,11 @@ const ALL_TABS_CONFIG = [
     label: "Quality Analysis",
     Icon: Icons.bugTrends,
     Component: QualityAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      if (!issues || issues.length === 0) {
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      if (!issuesArg || issuesArg.length === 0) {
         return false;
       }
-      return issues.some(issue => {
+      return issuesArg.some((issue: JiraIssue) => {
         const isBug = issue.type?.name?.toLowerCase() === 'bug';
         const hasRelevantDates = !!(issue.created || issue.resolutiondate);
         return isBug && hasRelevantDates;
@@ -96,8 +96,8 @@ const ALL_TABS_CONFIG = [
     label: "Custom Analysis",
     Icon: Icons.custom,
     Component: CustomAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      return !!issues && issues.length > 0;
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      return !!issuesArg && issuesArg.length > 0;
     },
   },
   {
@@ -105,11 +105,11 @@ const ALL_TABS_CONFIG = [
     label: "Advanced Metrics",
     Icon: Icons.advanced,
     Component: AdvancedMetricsTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      if (!issues || issues.length === 0) {
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      if (!issuesArg || issuesArg.length === 0) {
         return false;
       }
-      return issues.some(issue => {
+      return issuesArg.some((issue: JiraIssue) => {
         const hasCreatedDate = !!issue.created;
         const hasStatusCategory = !!issue.status?.statusCategory;
         return hasCreatedDate && hasStatusCategory;
@@ -121,11 +121,11 @@ const ALL_TABS_CONFIG = [
     label: "User Workload",
     Icon: Icons.userReport,
     Component: UserWorkloadReportTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
-      if (!issues || issues.length === 0) {
+    isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
+      if (!issuesArg || issuesArg.length === 0) {
         return false;
       }
-      return issues.some(issue => {
+      return issuesArg.some((issue: JiraIssue) => {
         const hasAssignee = !!issue.assignee;
         const hasTimeTracking =
           (typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
@@ -137,10 +137,13 @@ const ALL_TABS_CONFIG = [
   }
 ];
 
+type TabConfig = typeof ALL_TABS_CONFIG[0]; // Helper type
+
 function DashboardContent() {
   const { state: sidebarState } = useSidebar();
   const context = useContext(JiraDataContext);
 
+  // Early return for critical context error
   if (!context) {
     console.error("JiraDataContext not available in DashboardContent.");
     return (
@@ -155,33 +158,43 @@ function DashboardContent() {
       </div>
     );
   }
-  const { issues, isLoading, error } = context;
 
+  const { issues, isLoading, error } = context;
   const [activeTab, setActiveTab] = useState<string>(ALL_TABS_CONFIG[0].value);
 
-  const availableTabs = useMemo(() => {
+  // Memoize availableTabs based on issues and loading state
+  const availableTabs = useMemo<TabConfig[]>(() => {
     if (isLoading && (!issues || issues.length === 0)) {
       return [ALL_TABS_CONFIG[0]];
     }
     if (!issues || issues.length === 0) {
       return [ALL_TABS_CONFIG[0]];
     }
-    const dataSufficientTabs = ALL_TABS_CONFIG.filter(tab => tab.isDataSufficient(issues));
+    const dataSufficientTabs = ALL_TABS_CONFIG.filter((tab: TabConfig) => tab.isDataSufficient(issues));
     if (dataSufficientTabs.length > 0) {
       return dataSufficientTabs;
     }
-    return [ALL_TABS_CONFIG[0]];
+    return [ALL_TABS_CONFIG[0]]; // Default fallback
   }, [issues, isLoading]);
 
+  // Effect to synchronize activeTab if it's no longer available
   useEffect(() => {
-    if (!availableTabs.find(tab => tab.value === activeTab)) {
-      setActiveTab(availableTabs[0].value); // availableTabs is guaranteed to have at least one item
+    if (availableTabs.length > 0 && !availableTabs.find((tab: TabConfig) => tab.value === activeTab)) {
+      setActiveTab(availableTabs[0].value);
     }
   }, [availableTabs, activeTab]);
 
-  const currentTabConfig = useMemo(() => {
-    const foundTab = availableTabs.find(tab => tab.value === activeTab);
-    return foundTab || availableTabs[0]; // Fallback to the first available tab
+  // Memoize the current tab configuration
+  const currentTabConfig = useMemo<TabConfig>(() => {
+    const foundTab = availableTabs.find((tab: TabConfig) => tab.value === activeTab);
+    if (foundTab) {
+      return foundTab;
+    }
+    // Fallback logic
+    if (availableTabs.length > 0) {
+      return availableTabs[0];
+    }
+    return ALL_TABS_CONFIG[0]; // Absolute fallback
   }, [activeTab, availableTabs]);
 
   return (
@@ -234,7 +247,7 @@ function DashboardContent() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <ScrollArea className="w-full whitespace-nowrap border-b">
                 <TabsList className="mb-0 inline-flex h-auto rounded-none border-0 bg-transparent p-0">
-                  {availableTabs.map(tab => (
+                  {availableTabs.map((tab: TabConfig) => (
                     <TabsTrigger
                       key={tab.value}
                       value={tab.value}
