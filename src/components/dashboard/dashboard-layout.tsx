@@ -11,6 +11,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Icons } from '@/components/icons';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 import { JiraSidebarContent } from './sidebar-content';
 import { OverviewTab } from './overview-tab';
@@ -29,62 +31,90 @@ const ALL_TABS_CONFIG = [
     label: "Overview",
     Icon: Icons.overview,
     Component: OverviewTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => !!issues,
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      return !!issues && issues.length > 0;
+    },
   },
   {
     value: "agile",
     label: "Agile Metrics",
     Icon: Icons.agile,
     Component: AgileMetricsTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean =>
-      !!issues && issues.some(i =>
-        (i.sprint && (i.storyPoints || i.timespent)) ||
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      if (!issues || issues.length === 0) {
+        return false;
+      }
+      return issues.some(i =>
+        (i.sprint && ( (typeof i.storyPoints === 'number' && i.storyPoints > 0) || (typeof i.timespent === 'number' && i.timespent > 0) ) ) ||
         (i.status?.statusCategory?.key === 'done' && i.created && i.resolutiondate) ||
         (i.resolutiondate && i.status?.statusCategory?.key === 'done')
-    ),
+      );
+    },
   },
   {
     value: "team",
     label: "Team Workload",
     Icon: Icons.team,
     Component: TeamWorkloadTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean =>
-      !!issues && issues.some(i =>
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      if (!issues || issues.length === 0) {
+        return false;
+      }
+      return issues.some(i =>
         (i.assignee && i.status?.statusCategory?.key !== 'done') ||
         (i.status?.statusCategory?.key === 'done' && i.resolutiondate)
-    ),
+      );
+    },
   },
   {
     value: "quality",
     label: "Quality Analysis",
-    Icon: Icons.bugTrends, // Corrected icon
+    Icon: Icons.bugTrends,
     Component: QualityAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean =>
-      !!issues && issues.some(i => i.type?.name?.toLowerCase() === 'bug' && (i.created || i.resolutiondate)),
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      if (!issues || issues.length === 0) {
+        return false;
+      }
+      return issues.some(i => i.type?.name?.toLowerCase() === 'bug' && (i.created || i.resolutiondate));
+    },
   },
   {
     value: "custom",
     label: "Custom Analysis",
     Icon: Icons.custom,
     Component: CustomAnalysisTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => !!issues && issues.length > 0,
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      return !!issues && issues.length > 0;
+    },
   },
   {
     value: "advanced",
-    label: "Advanced Metrics", // CFD
+    label: "Advanced Metrics",
     Icon: Icons.advanced,
     Component: AdvancedMetricsTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean =>
-      !!issues && issues.some(i => i.created && i.status && i.status.statusCategory),
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      if (!issues || issues.length === 0) {
+        return false;
+      }
+      return issues.some(i => i.created && i.status && i.status.statusCategory);
+    },
   },
   {
     value: "userReport",
     label: "User Workload",
     Icon: Icons.userReport,
     Component: UserWorkloadReportTab,
-    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean =>
-      !!issues && issues.some(i => i.assignee && (i.timeoriginalestimate || i.timespent || i.timeestimate)),
-  },
+    isDataSufficient: (issues: JiraIssue[] | null | undefined): boolean => {
+      if (!issues || issues.length === 0) {
+        return false;
+      }
+      return issues.some(i => i.assignee && (
+        (typeof i.timeoriginalestimate === 'number' && i.timeoriginalestimate > 0) ||
+        (typeof i.timespent === 'number' && i.timespent > 0) ||
+        (typeof i.timeestimate === 'number' && i.timeestimate > 0)
+      ));
+    },
+  }
 ];
 
 function DashboardContent() {
@@ -93,41 +123,45 @@ function DashboardContent() {
 
   if (!context) {
     console.error("JiraDataContext not available in DashboardContent.");
-    return <div className="p-4 text-red-500">Critical Error: JiraDataContext not available.</div>;
+    return (
+      <div className="flex min-h-screen bg-background items-center justify-center p-4">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Critical Application Error</AlertTitle>
+          <AlertDescription>
+            JiraDataContext is not available. The application cannot function.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
   const { issues, isLoading, error } = context;
 
   const [activeTab, setActiveTab] = useState<string>(ALL_TABS_CONFIG[0].value);
 
   const availableTabs = useMemo(() => {
-    if (isLoading && (!issues || issues.length === 0)) { // Show only overview while initial loading
-      return ALL_TABS_CONFIG.filter(tab => tab.value === "overview");
+    if (isLoading && (!issues || issues.length === 0)) {
+      return [ALL_TABS_CONFIG[0]]; 
     }
-    if (!issues || issues.length === 0) { // If no issues after load, show only overview
-      return ALL_TABS_CONFIG.filter(tab => tab.value === "overview");
+    if (!issues || issues.length === 0) {
+      return [ALL_TABS_CONFIG[0]];
     }
     const dataSufficientTabs = ALL_TABS_CONFIG.filter(tab => tab.isDataSufficient(issues));
     if (dataSufficientTabs.length > 0) {
       return dataSufficientTabs;
     }
-    return ALL_TABS_CONFIG.filter(tab => tab.value === "overview"); // Fallback to overview if no specific tabs are sufficient
+    return [ALL_TABS_CONFIG[0]]; 
   }, [issues, isLoading]);
 
   useEffect(() => {
-    if (!availableTabs.some(tab => tab.value === activeTab)) {
+    if (!availableTabs.find(tab => tab.value === activeTab)) {
       setActiveTab(availableTabs.length > 0 ? availableTabs[0].value : ALL_TABS_CONFIG[0].value);
     }
-  }, [availableTabs, activeTab, setActiveTab]);
+  }, [availableTabs, activeTab]); 
 
   const currentTabConfig = useMemo(() => {
     const foundTab = availableTabs.find(tab => tab.value === activeTab);
-    if (foundTab) {
-      return foundTab;
-    }
-    if (availableTabs.length > 0) {
-      return availableTabs[0];
-    }
-    return ALL_TABS_CONFIG[0]; // Absolute fallback
+    return foundTab || (availableTabs.length > 0 ? availableTabs[0] : ALL_TABS_CONFIG[0]);
   }, [activeTab, availableTabs]);
 
   return (
@@ -151,8 +185,9 @@ function DashboardContent() {
               <p className="ml-2 text-muted-foreground">Fetching Jira data...</p>
             </div>
           ) : error ? (
-            <div className="p-4 mt-4 text-center text-destructive">
-                Error fetching data: {error}
+            <div className="p-4 mt-4 text-center text-destructive bg-destructive/10 border border-destructive/30 rounded-md">
+                <p className="font-semibold">Error Fetching Data</p>
+                <p className="text-sm">{error}</p>
             </div>
           ) : (!issues || issues.length === 0) && !isLoading ? (
              <Tabs value={ALL_TABS_CONFIG[0].value} className="w-full">
@@ -172,7 +207,7 @@ function DashboardContent() {
                  <OverviewTab />
               </TabsContent>
                <div className="p-4 mt-4 text-center text-muted-foreground">
-                 No Jira issues found. Please fetch issues using the sidebar.
+                 No Jira issues found. Please fetch issues using the sidebar, or adjust filters.
                </div>
             </Tabs>
           ) : (
