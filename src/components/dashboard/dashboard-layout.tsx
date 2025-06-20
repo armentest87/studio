@@ -16,15 +16,22 @@ import { AlertTriangle } from 'lucide-react';
 import { isValid, parseISO } from 'date-fns';
 
 import { JiraSidebarContent } from './sidebar-content';
-import { OverviewTab } from './overview-tab';
-import { AgileMetricsTab } from './agile-metrics-tab';
-import { TeamWorkloadTab } from './team-workload-tab';
-import { QualityAnalysisTab } from './quality-analysis-tab';
-import { CustomAnalysisTab } from './custom-analysis-tab';
-import { AdvancedMetricsTab } from './advanced-metrics-tab';
-import { UserWorkloadReportTab } from './user-workload-report-tab';
 import { JiraDataProvider, JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
+
+// Import new tab components
+import { GeneralInfoTab } from './general-info-tab';
+import { UserRoleMgmtTab } from './user-role-mgmt-tab';
+import { DateTimeInfoTab } from './date-time-info-tab';
+import { TimeTrackingTab } from './time-tracking-tab';
+import { FinancePaymentsTab } from './finance-payments-tab';
+import { DesignUiTab } from './design-ui-tab';
+import { GamingSetupTab } from './gaming-setup-tab';
+import { HumanResourcesTab } from './human-resources-tab';
+import { ProjectTaskMgmtTab } from './project-task-mgmt-tab';
+import { IncidentRiskMgmtTab } from './incident-risk-mgmt-tab';
+import { OtherCustomFieldsTab } from './other-custom-fields-tab';
+
 
 type TabConfig = {
   value: string;
@@ -35,103 +42,111 @@ type TabConfig = {
 };
 
 const ALL_TABS_CONFIG: TabConfig[] = [
-  { 
-    value: "overview", 
-    label: "Overview", 
-    Icon: Icons.overview, 
-    Component: OverviewTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => !!(issuesArg && issuesArg.length > 0)
+  {
+    value: "generalInfo",
+    label: "General Info",
+    Icon: Icons.generalInfo,
+    Component: GeneralInfoTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => !!(issuesArg && issuesArg.length > 0)
   },
-  { 
-    value: "agile", 
-    label: "Agile Metrics", 
-    Icon: Icons.agile, 
-    Component: AgileMetricsTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => {
+  {
+    value: "userRoleMgmt",
+    label: "User & Role Mgmt",
+    Icon: Icons.userRoleMgmt,
+    Component: UserRoleMgmtTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
       if (!issuesArg || issuesArg.length === 0) return false;
-      const hasSprintEffort = issuesArg.some(
-        (issue) =>
-          issue.sprint?.name &&
-          issue.status?.statusCategory?.key === 'done' &&
-          ((issue.storyPoints && issue.storyPoints > 0) || (issue.timespent && issue.timespent > 0))
-      );
-      const hasLeadOrCycleTimeData = issuesArg.some(
-        (issue) =>
-          issue.status?.statusCategory?.key === 'done' &&
-          issue.created &&
-          issue.resolutiondate &&
-          isValid(parseISO(issue.created)) &&
-          isValid(parseISO(issue.resolutiondate!))
-      );
-      const hasThroughputData = issuesArg.some(
-          (issue) => issue.status?.statusCategory?.key === 'done' && issue.resolutiondate && isValid(parseISO(issue.resolutiondate!))
-      );
-      return hasSprintEffort || hasLeadOrCycleTimeData || hasThroughputData;
+      return issuesArg.some(issue => issue.assignee?.displayName || issue.reporter?.displayName);
     }
   },
-  { 
-    value: "team", 
-    label: "Team Workload", 
-    Icon: Icons.team, 
-    Component: TeamWorkloadTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => {
-      if (!issuesArg || issuesArg.length === 0) return false;
-      const hasAssigneeWorkload = issuesArg.some(
-        (issue) => issue.status?.statusCategory?.key !== 'done' && issue.assignee?.displayName
-      );
-      const hasCompletionRateData = issuesArg.some(
-        (issue) => issue.status?.statusCategory?.key === 'done' && issue.resolutiondate && isValid(parseISO(issue.resolutiondate!))
-      );
-      return hasAssigneeWorkload || hasCompletionRateData;
+  {
+    value: "dateTimeInfo",
+    label: "Date & Time",
+    Icon: Icons.dateTimeInfo,
+    Component: DateTimeInfoTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+       if (!issuesArg || issuesArg.length === 0) return false;
+       return issuesArg.some(issue => (issue.created && isValid(parseISO(issue.created))) || (issue.resolutiondate && isValid(parseISO(issue.resolutiondate))));
     }
   },
-  { 
-    value: "quality", 
-    label: "Quality Analysis", 
-    Icon: Icons.bugTrends, 
-    Component: QualityAnalysisTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => {
+  {
+    value: "timeTracking",
+    label: "Time Tracking",
+    Icon: Icons.timeTracking,
+    Component: TimeTrackingTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
       if (!issuesArg || issuesArg.length === 0) return false;
-      return issuesArg.some((issue) => issue.type?.name?.toLowerCase() === 'bug' && issue.created && isValid(parseISO(issue.created)));
+      return issuesArg.some(issue => typeof issue.timeoriginalestimate === 'number' || typeof issue.timespent === 'number');
     }
   },
-  { 
-    value: "custom", 
-    label: "Custom Analysis", 
-    Icon: Icons.custom, 
-    Component: CustomAnalysisTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => !!(issuesArg && issuesArg.length > 0)
-  },
-  { 
-    value: "advanced", 
-    label: "Advanced Metrics", 
-    Icon: Icons.advanced, 
-    Component: AdvancedMetricsTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => {
+  {
+    value: "financePayments",
+    label: "Finance",
+    Icon: Icons.financePayments,
+    Component: FinancePaymentsTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
       if (!issuesArg || issuesArg.length === 0) return false;
-      return issuesArg.some(
-        (issue) =>
-          issue.created &&
-          isValid(parseISO(issue.created)) &&
-          issue.status?.statusCategory?.key
-      );
+      return issuesArg.some(issue => issue.customfield_12929 || issue.customfield_12606 || issue.customfield_12608); // Cost Center, Amount, Payment Type
     }
   },
-  { 
-    value: "userReport", 
-    label: "User Workload", 
-    Icon: Icons.userReport, 
-    Component: UserWorkloadReportTab,
-    isDataSufficient: (issuesArg?: JiraIssue[] | null) => {
-      if (!issuesArg || issuesArg.length === 0) return false;
-      const hasTimeTracking = issuesArg.some(
-        (issue) =>
-          (typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
-          (typeof issue.timespent === 'number' && issue.timespent > 0) ||
-          (typeof issue.timeestimate === 'number' && issue.timeestimate > 0)
-      );
-      const hasAssignees = issuesArg.some((issue) => !!issue.assignee);
-      return hasTimeTracking || hasAssignees;
+  {
+    value: "designUI",
+    label: "Design & UI",
+    Icon: Icons.designUI,
+    Component: DesignUiTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.customfield_design_option || issue.customfield_icon_type);
+    }
+  },
+  {
+    value: "gamingSetup",
+    label: "Gaming & Setup",
+    Icon: Icons.gamingSetup,
+    Component: GamingSetupTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.customfield_12804 || issue.customfield_game_type); // Number of Tables, Game Type
+    }
+  },
+  {
+    value: "humanResources",
+    label: "HR",
+    Icon: Icons.humanResources,
+    Component: HumanResourcesTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.customfield_employee_category || issue.customfield_employee_position || issue.customfield_employee_salary);
+    }
+  },
+  {
+    value: "projectTaskMgmt",
+    label: "Project & Tasks",
+    Icon: Icons.projectTaskMgmt,
+    Component: ProjectTaskMgmtTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.startdate || issue.duedate); // For Gantt-like views
+    }
+  },
+  {
+    value: "incidentRiskMgmt",
+    label: "Incidents & Risks",
+    Icon: Icons.incidentRiskMgmt,
+    Component: IncidentRiskMgmtTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.customfield_incident_severity || issue.customfield_risk_likelihood || issue.customfield_risk_impact);
+    }
+  },
+  {
+    value: "otherCustomFields",
+    label: "Other Custom",
+    Icon: Icons.otherCustomFields,
+    Component: OtherCustomFieldsTab,
+    isDataSufficient: (issuesArg?: JiraIssue[] | null): boolean => {
+        if (!issuesArg || issuesArg.length === 0) return false;
+        return issuesArg.some(issue => issue.customfield_10500 || issue.customfield_16160);
     }
   }
 ];
@@ -158,31 +173,37 @@ function DashboardContent() {
   const { issues, isLoading, error } = context;
 
   const availableTabs = useMemo(() => {
-    return ALL_TABS_CONFIG.filter(tab => 
+    return ALL_TABS_CONFIG.filter(tab =>
       tab.isDataSufficient ? tab.isDataSufficient(issues) : true
     );
   }, [issues]);
 
-  const [activeTab, setActiveTab] = useState<string>(availableTabs.length > 0 ? availableTabs[0].value : ALL_TABS_CONFIG[0].value);
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    // Initialize activeTab based on initially available tabs from context or default
+    const initialContextIssues = context?.issues || [];
+    const firstAvailable = ALL_TABS_CONFIG.filter(tab =>
+      tab.isDataSufficient ? tab.isDataSufficient(initialContextIssues) : true
+    )[0];
+    return firstAvailable ? firstAvailable.value : (ALL_TABS_CONFIG[0]?.value || 'generalInfo');
+  });
+
 
   useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.find(tab => tab.value === activeTab)) {
+    const currentActiveTabExists = availableTabs.some(tab => tab.value === activeTab);
+    if (!currentActiveTabExists && availableTabs.length > 0) {
       setActiveTab(availableTabs[0].value);
     } else if (availableTabs.length === 0 && ALL_TABS_CONFIG.length > 0) {
-      // Fallback if no tabs are sufficient, default to the first defined tab (e.g. Overview)
-      // This case might mean Overview itself needs data to be shown, handled by its own isDataSufficient
-      const defaultTab = ALL_TABS_CONFIG.find(tab => tab.isDataSufficient ? tab.isDataSufficient(issues) : true);
-      setActiveTab(defaultTab ? defaultTab.value : ALL_TABS_CONFIG[0].value);
+      // If no tabs are data-sufficient, default to the first defined tab
+      setActiveTab(ALL_TABS_CONFIG[0].value);
     }
-  }, [availableTabs, activeTab, issues]);
+  }, [availableTabs, activeTab, issues]); // `issues` dependency ensures re-evaluation when data changes
 
   const currentDisplayTabConfig = useMemo(() => {
-    return availableTabs.find(tab => tab.value === activeTab) || 
-           (ALL_TABS_CONFIG.find(tab => tab.isDataSufficient ? tab.isDataSufficient(issues) : true)) || // Fallback to first available
-           ALL_TABS_CONFIG[0]; // Absolute fallback
-  }, [activeTab, availableTabs, issues]);
-  
-  const displayNoDataMessage = !isLoading && (!issues || issues.length === 0 || availableTabs.length === 0);
+    return availableTabs.find(tab => tab.value === activeTab) ||
+           (availableTabs.length > 0 ? availableTabs[0] : ALL_TABS_CONFIG[0]); // Fallback strategy
+  }, [activeTab, availableTabs]);
+
+  const displayNoDataMessage = !isLoading && (!issues || issues.length === 0 || (availableTabs.length === 0 && ALL_TABS_CONFIG.length > 0));
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -211,14 +232,17 @@ function DashboardContent() {
             </div>
           ) : displayNoDataMessage ? (
              <div className="p-4 mt-4 text-center text-muted-foreground">
-               No Jira issues found or data is insufficient for any tabs. Please fetch issues using the sidebar, or adjust filters.
+               No Jira issues found or data is insufficient for any visualization tabs. Please fetch issues using the sidebar, or adjust filters.
+               { ALL_TABS_CONFIG.length > 0 && (!availableTabs.find(tab => tab.value === activeTab) || availableTabs.length === 0) && (
+                <p className="text-sm mt-2">Defaulting to: {ALL_TABS_CONFIG[0].label}</p>
+               )}
              </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <ScrollArea className="w-full whitespace-nowrap border-b">
                 <TabsList className="mb-0 inline-flex h-auto rounded-none border-0 bg-transparent p-0">
-                  {availableTabs.map((tab) => (
-                    <TabsTrigger
+                  {(availableTabs.length > 0 ? availableTabs : [ALL_TABS_CONFIG[0]]).map((tab) => ( // Show first tab if no data-sufficient tabs
+                    tab && <TabsTrigger
                       key={tab.value}
                       value={tab.value}
                       className="flex-shrink-0 h-10 px-3 py-2 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
@@ -229,8 +253,8 @@ function DashboardContent() {
                   ))}
                 </TabsList>
               </ScrollArea>
-              {availableTabs.map((tab) => (
-                 <TabsContent key={tab.value} value={tab.value} className="mt-4">
+              {(availableTabs.length > 0 ? availableTabs : [ALL_TABS_CONFIG[0]]).map((tab) => ( // Render content for available tabs or the default first tab
+                 tab && <TabsContent key={tab.value} value={tab.value} className="mt-4">
                    <tab.Component />
                  </TabsContent>
               ))}

@@ -38,7 +38,13 @@ import {
   UserCircle2,
   LineChart,
   Loader2,
-  Bug, // Added Bug icon
+  Bug,
+  Banknote, // New for Finance
+  Palette, // New for Design
+  Gamepad2, // New for Gaming
+  Briefcase, // New for HR
+  ShieldAlert, // New for Risk/Incident (alternative to AlertTriangle)
+  ListChecks, // Alternative for Task Management
 } from 'lucide-react';
 
 export const Icons = {
@@ -58,46 +64,61 @@ export const Icons = {
     </svg>
   ),
   dashboard: LayoutDashboard,
+  // Old icons (some might be reused or serve as fallback)
   agile: BarChart3,
   team: Users, 
-  users: Users, 
   quality: AlertTriangle, 
-  alertTriangle: AlertTriangle, 
   custom: Settings2,
-  advanced: ListFilter,
+  advanced: ListFilter, // Could be used for Tab 11
   userReport: FileText,
-  overview: GanttChartSquare,
+  // Icons for old dashboard tabs
   velocity: TrendingUp,
   burndown: Target,
-  cycleTime: FileClock,
+  cycleTime: FileClock, // Could be used for Tab 4 (Time Tracking)
   throughput: Hourglass,
-  sprintCommitment: ClipboardList,
+  sprintCommitment: ClipboardList, // Could be used for Tab 9 (Project/Task Mgmt)
   rollingVelocity: History,
   scopeChange: GitMerge,
-  leadTime: Clock,
+  leadTime: Clock, // Could be used for Tab 3 (Date/Time)
   workingHours: UserCheck,
   timeInStatus: Workflow,
   assigneeWorkload: Package,
   taskCompletion: CheckCircle2, 
-  checkCircle2: CheckCircle2, 
-  bugTrends: Bug, // Updated to use Bug icon
+  bugTrends: Bug, 
   cfd: AreaChart, 
   customFieldDist: PieChart,
-  project: Projector,
-  date: CalendarDays,
+
+  // General utility icons
+  checkCircle2: CheckCircle2, 
+  alertTriangle: AlertTriangle, // Could be used for Tab 10 (Incident/Risk)
+  project: Projector, // Could be used for Tab 9 (Project/Task Mgmt)
+  date: CalendarDays, // Could be used for Tab 3 (Date/Time)
   status: SlidersHorizontal,
   assignee: UserCircle2,
   table: TableIcon,
   filter: Filter,
   percent: Percent,
   lineChart: LineChart,
+  loader: Loader2, 
+  
+  // New Tab Specific Icons
+  generalInfo: GanttChartSquare, // Tab 1 (reusing overview concept)
+  userRoleMgmt: Users, // Tab 2
+  dateTimeInfo: CalendarDays, // Tab 3
+  timeTracking: FileClock, // Tab 4
+  financePayments: Banknote, // Tab 5
+  designUI: Palette, // Tab 6
+  gamingSetup: Gamepad2, // Tab 7
+  humanResources: Briefcase, // Tab 8
+  projectTaskMgmt: ListChecks, // Tab 9 (using ListChecks as alternative to Projector/ClipboardList)
+  incidentRiskMgmt: ShieldAlert, // Tab 10 (using ShieldAlert as alternative to AlertTriangle)
+  otherCustomFields: ListFilter, // Tab 11
+
+  // Fallback / other
   github: Github,
   lifeBuoy: LifeBuoy,
   login: LogIn,
   logout: FileOutput,
-  loader: Loader2, 
 };
 
 export type IconName = keyof typeof Icons;
-
-    

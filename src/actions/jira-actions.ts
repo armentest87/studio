@@ -91,13 +91,37 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   // Comprehensive list of fields based on old app and potential needs
   const fieldsToRequest = [
     "summary", "description", "status", "issuetype", "project", "assignee", "reporter",
-    "priority", "labels", "components", "created", "updated", "resolutiondate",
+    "priority", "labels", "components", "created", "updated", "resolutiondate", "duedate", "startdate",
     "timeoriginalestimate", "timespent", "timeestimate",
     "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
-    "worklog", "parent", "duedate", "environment", "versions", "fixVersions",
-    "customfield_10007", // Sprint field ID (example, often holds sprint details) - Adjust if different for your instance
-    "customfield_12326", // Story Points field ID (example) - Adjust if different for your instance
-    // Add other common custom field IDs if known, e.g., "customfield_10016" (another sprint field variant), "customfield_10020" (Epic Link) etc.
+    "worklog", "parent", "environment", "versions", "fixVersions",
+    "customfield_10007", // Sprint field
+    "customfield_12326", // Story Points field
+    // New custom fields based on the document
+    "customfield_12929", // Cost Centers
+    "customfield_12606", // Amount
+    "customfield_12608", // Payment Type
+    "customfield_12905", // Payment Due Date
+    "customfield_12902", // Payer Company
+    "customfield_12804", // Number of Tables
+    "customfield_10500", // Request Participants
+    "customfield_16160", // Evaluation Committee
+    // Add placeholders for named custom fields that might be used
+    // These actual IDs would need to be configured for a specific Jira instance
+    "customfield_user_role", 
+    "customfield_user_department",
+    "customfield_design_option",
+    "customfield_icon_type",
+    "customfield_application_name",
+    "customfield_physical_location",
+    "customfield_game_type",
+    "customfield_employee_category",
+    "customfield_employee_position",
+    "customfield_employee_salary",
+    "customfield_risk_likelihood",
+    "customfield_risk_impact",
+    "customfield_incident_severity",
+    "customfield_incident_type",
   ];
 
   let allIssuesRaw: any[] = [];
@@ -111,7 +135,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
       const body = {
         jql: constructedJql,
         fields: fieldsToRequest,
-        expand: ["changelog"], // Expand changelog for more detailed history if needed later
+        expand: ["changelog"], 
         startAt: startAt,
         maxResults: maxResultsPerRequest,
       };
@@ -139,7 +163,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
               detailedError += ` ${jiraError.message}`;
           }
         } catch (parseError) { 
-            detailedError += ` Response: ${errorText.substring(0, 200)}...`; // Show partial response if not JSON
+            detailedError += ` Response: ${errorText.substring(0, 200)}...`; 
         }
         return { success: false, error: `Jira API request failed. ${detailedError}`, data: null };
       }
@@ -159,9 +183,9 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
     } while (startAt < totalIssuesFromResponse && fetchedIssuesInBatch > 0); 
 
 
-    const issues: JiraIssue[] = allIssuesRaw.map((issue: any) => {
+    const issues: JiraIssue[] = allIssuesRaw.map((issueData: any) => {
       let sprintData: JiraSprint | null = null;
-      const rawSprintField = issue.fields.customfield_10007; // Adjust this if your sprint field ID is different
+      const rawSprintField = issueData.fields.customfield_10007; 
 
       if (rawSprintField && Array.isArray(rawSprintField) && rawSprintField.length > 0) {
           const parsedSprints = rawSprintField
@@ -182,62 +206,69 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
             })
             .filter(Boolean) as JiraSprint[];
             
-          // Prioritize active, then future, then most recently completed/ended sprint
           sprintData = parsedSprints.find(s => s.state === 'active') || 
                         parsedSprints.find(s => s.state === 'future') || 
                         parsedSprints.sort((a,b) => {
                             const dateA = a.completeDate ? new Date(a.completeDate).getTime() : (a.endDate ? new Date(a.endDate).getTime() : 0);
                             const dateB = b.completeDate ? new Date(b.completeDate).getTime() : (b.endDate ? new Date(b.endDate).getTime() : 0);
-                            return dateB - dateA; // Sort descending by completion/end date
+                            return dateB - dateA; 
                         })[0] || 
                         null;
       }
 
-      return {
-        id: issue.key,
-        self: issue.self,
-        summary: issue.fields.summary,
-        description: issue.fields.description, 
-        status: issue.fields.status,
-        type: issue.fields.issuetype,
-        project: issue.fields.project,
-        assignee: issue.fields.assignee,
-        reporter: issue.fields.reporter,
-        priority: issue.fields.priority,
-        labels: issue.fields.labels || [],
-        components: issue.fields.components || [],
-        created: issue.fields.created,
-        updated: issue.fields.updated,
-        resolutiondate: issue.fields.resolutiondate,
-        duedate: issue.fields.duedate,
-        environment: issue.fields.environment,
-        versions: issue.fields.versions || [],
-        fixVersions: issue.fields.fixVersions || [],
+      const mappedIssue: JiraIssue = {
+        id: issueData.key,
+        self: issueData.self,
+        summary: issueData.fields.summary,
+        description: issueData.fields.description, 
+        status: issueData.fields.status,
+        type: issueData.fields.issuetype,
+        project: issueData.fields.project,
+        assignee: issueData.fields.assignee,
+        reporter: issueData.fields.reporter,
+        priority: issueData.fields.priority,
+        labels: issueData.fields.labels || [],
+        components: issueData.fields.components || [],
+        created: issueData.fields.created,
+        updated: issueData.fields.updated,
+        resolutiondate: issueData.fields.resolutiondate,
+        duedate: issueData.fields.duedate,
+        startdate: issueData.fields.startdate, // For Gantt
+        environment: issueData.fields.environment,
+        versions: issueData.fields.versions || [],
+        fixVersions: issueData.fields.fixVersions || [],
 
-        timeoriginalestimate: issue.fields.timeoriginalestimate,
-        timespent: issue.fields.timespent,
-        timeestimate: issue.fields.timeestimate,
-        aggregatetimeoriginalestimate: issue.fields.aggregatetimeoriginalestimate,
-        aggregatetimespent: issue.fields.aggregatetimespent, 
-        aggregatetimeestimate: issue.fields.aggregatetimeestimate,
+        timeoriginalestimate: issueData.fields.timeoriginalestimate,
+        timespent: issueData.fields.timespent,
+        timeestimate: issueData.fields.timeestimate,
+        aggregatetimeoriginalestimate: issueData.fields.aggregatetimeoriginalestimate,
+        aggregatetimespent: issueData.fields.aggregatetimespent, 
+        aggregatetimeestimate: issueData.fields.aggregatetimeestimate,
 
-        worklog: issue.fields.worklog, 
-        parent: issue.fields.parent,
+        worklog: issueData.fields.worklog, 
+        parent: issueData.fields.parent,
         
         sprint: sprintData,
         closedSprints: rawSprintField && Array.isArray(rawSprintField) ? 
           rawSprintField.map(s => {
             if (typeof s === 'string') return parseSprintString(s);
-            if (typeof s === 'object' && s !== null && s.id && s.name && s.state) return s as JiraSprint; // Assuming it's already a JiraSprint like object
+            if (typeof s === 'object' && s !== null && s.id && s.name && s.state) return s as JiraSprint; 
             return null;
           }).filter(s => s && s.state === 'closed') as JiraSprint[] : [],
-        customfield_10007: rawSprintField, // Store raw sprint field for debugging or other uses
-
-        storyPoints: issue.fields.customfield_12326 || null, // Adjust if your story points field ID is different
-        customfield_12326: issue.fields.customfield_12326, // Store raw story points for debugging
-
-        changelog: issue.changelog, // Store expanded changelog
+        
+        storyPoints: issueData.fields.customfield_12326 || null,
+        
+        changelog: issueData.changelog,
       };
+
+      // Dynamically add all custom fields from fieldsToRequest that are present
+      fieldsToRequest.forEach(fieldKey => {
+        if (fieldKey.startsWith('customfield_') && issueData.fields[fieldKey] !== undefined) {
+          mappedIssue[fieldKey] = issueData.fields[fieldKey];
+        }
+      });
+      
+      return mappedIssue;
     });
 
     console.log(`Successfully processed ${issues.length} issues.`);
@@ -272,19 +303,6 @@ export async function fetchJiraProjects(params: JiraConfig): Promise<FetchJiraPr
   const authString = `${email}:${apiToken}`;
   const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
 
-  // --- MOCK IMPLEMENTATION START (Comment out or remove for live API) ---
-  // console.log("Mocking fetchJiraProjects call. To enable live API, uncomment below and comment out mock.");
-  // const mockProjects: JiraProjectDetail[] = [
-  //   { id: "10001", key: "PROJA", name: "Project Alpha", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: false, style: "classic" },
-  //   { id: "10002", key: "PROJB", name: "Project Beta", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "software", simplified: true, style: "next-gen" },
-  //   { id: "10003", key: "MOCK", name: "Mock Project X", avatarUrls: {'48x48': 'https://placehold.co/48x48.png'}, projectTypeKey: "business", simplified: false, style: "classic" },
-  // ];
-  // await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-  // return { success: true, data: mockProjects, message: "Successfully fetched mock projects." };
-  // --- MOCK IMPLEMENTATION END ---
-
-
-  // --- REAL API CALL ---
   try {
     console.log("Fetching projects from Jira API...");
     const response = await fetch(jiraApiEndpoint, {
