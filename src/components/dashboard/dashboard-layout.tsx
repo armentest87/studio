@@ -33,7 +33,7 @@ const ALL_TABS_CONFIG = [
     Icon: Icons.overview,
     Component: OverviewTab,
     isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      return !!issuesArg && issuesArg.length > 0;
+      return !!(issuesArg && issuesArg.length > 0);
     },
   },
   {
@@ -46,16 +46,22 @@ const ALL_TABS_CONFIG = [
         return false;
       }
       return issuesArg.some((issue: JiraIssue) => {
-        const hasStoryPoints = typeof issue.storyPoints === 'number' && issue.storyPoints > 0;
-        const hasTimeSpent = typeof issue.timespent === 'number' && issue.timespent > 0;
-        const hasSprintEffort = !!(issue.sprint && (hasStoryPoints || hasTimeSpent));
+        const hasStoryPointsValid = (typeof issue.storyPoints === 'number' && issue.storyPoints > 0);
+        const hasTimeSpentValid = (typeof issue.timespent === 'number' && issue.timespent > 0);
+        
+        let sprintEffortSufficient = false;
+        if (issue.sprint) {
+          if (hasStoryPointsValid || hasTimeSpentValid) {
+            sprintEffortSufficient = true;
+          }
+        }
 
-        const isResolvedWithDates = !!(
-          issue.status?.statusCategory?.key === 'done' &&
-          issue.created &&
-          issue.resolutiondate
-        );
-        return hasSprintEffort || isResolvedWithDates;
+        let isResolvedWithDates = false;
+        if (issue.status?.statusCategory?.key === 'done' && issue.created && issue.resolutiondate) {
+            isResolvedWithDates = true;
+        }
+        
+        return (sprintEffortSufficient || isResolvedWithDates);
       });
     },
   },
@@ -71,7 +77,7 @@ const ALL_TABS_CONFIG = [
       return issuesArg.some((issue: JiraIssue) => {
         const hasOpenAssignedIssue = !!(issue.assignee && issue.status?.statusCategory?.key !== 'done');
         const hasResolvedIssue = !!(issue.status?.statusCategory?.key === 'done' && issue.resolutiondate);
-        return hasOpenAssignedIssue || hasResolvedIssue;
+        return (hasOpenAssignedIssue || hasResolvedIssue);
       });
     },
   },
@@ -87,7 +93,7 @@ const ALL_TABS_CONFIG = [
       return issuesArg.some((issue: JiraIssue) => {
         const isBug = issue.type?.name?.toLowerCase() === 'bug';
         const hasRelevantDates = !!(issue.created || issue.resolutiondate);
-        return isBug && hasRelevantDates;
+        return (isBug && hasRelevantDates);
       });
     },
   },
@@ -97,7 +103,10 @@ const ALL_TABS_CONFIG = [
     Icon: Icons.custom,
     Component: CustomAnalysisTab,
     isDataSufficient: (issuesArg: JiraIssue[] | null | undefined): boolean => {
-      return !!issuesArg && issuesArg.length > 0;
+      if (issuesArg && issuesArg.length > 0) {
+        return true;
+      }
+      return false;
     },
   },
   {
@@ -112,7 +121,7 @@ const ALL_TABS_CONFIG = [
       return issuesArg.some((issue: JiraIssue) => {
         const hasCreatedDate = !!issue.created;
         const hasStatusCategory = !!issue.status?.statusCategory;
-        return hasCreatedDate && hasStatusCategory;
+        return (hasCreatedDate && hasStatusCategory);
       });
     },
   },
@@ -128,12 +137,12 @@ const ALL_TABS_CONFIG = [
       return issuesArg.some((issue: JiraIssue) => {
         const hasAssignee = !!issue.assignee;
         const hasTimeTracking =
-          (typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
+          ((typeof issue.timeoriginalestimate === 'number' && issue.timeoriginalestimate > 0) ||
           (typeof issue.timespent === 'number' && issue.timespent > 0) ||
-          (typeof issue.timeestimate === 'number' && issue.timeestimate > 0);
-        return hasAssignee && hasTimeTracking;
+          (typeof issue.timeestimate === 'number' && issue.timeestimate > 0));
+        return (hasAssignee && hasTimeTracking); 
       });
-    },
+    }
   }
 ];
 
@@ -260,9 +269,13 @@ function DashboardContent() {
                 </TabsList>
               </ScrollArea>
 
-              <TabsContent value={currentTabConfig.value} className="mt-4">
-                <currentTabConfig.Component />
-              </TabsContent>
+              {/* Check if currentTabConfig and its Component are defined before rendering */}
+              {currentTabConfig && currentTabConfig.Component && (
+                 <TabsContent value={currentTabConfig.value} className="mt-4">
+                   <currentTabConfig.Component />
+                 </TabsContent>
+              )}
+
 
               {availableTabs.length === 1 && availableTabs[0].value === "overview" && !isLoading && issues && issues.length > 0 && (
                  <div className="p-4 mt-4 text-center text-muted-foreground">
