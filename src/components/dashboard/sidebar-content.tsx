@@ -23,6 +23,9 @@ import { fetchJiraIssues, fetchJiraProjects } from '@/actions/jira-actions';
 import type { JiraConfig, JiraFilters, JiraProjectDetail } from '@/types/jira';
 import { JiraDataContext } from '@/context/JiraDataContext'; 
 
+// Define DateRange type for clarity, matching react-day-picker's DateRange
+type DateRangeType = { from?: Date; to?: Date };
+
 export function JiraSidebarContent() {
   const { toast } = useToast();
   const jiraDataContext = useContext(JiraDataContext);
@@ -40,7 +43,7 @@ export function JiraSidebarContent() {
   const [queryType, setQueryType] = useState<'jql' | 'project'>('project');
   const [jqlQuery, setJqlQuery] = useState('');
   const [projectKey, setProjectKey] = useState(''); 
-  const [dateRange, setDateRange] = React.useState<{ from?: Date; to?: Date }>({});
+  const [dateRange, setDateRange] = React.useState<DateRangeType | undefined>({}); // Can be undefined if deselected
   const [issueType, setIssueType] = useState<string>('all'); 
   const [isFetching, setIsFetching] = useState(false);
 
@@ -110,7 +113,7 @@ export function JiraSidebarContent() {
       filters.jqlQuery = jqlQuery;
     } else { 
       filters.project = projectKey;
-      filters.dateRange = dateRange.from || dateRange.to ? dateRange : undefined;
+      filters.dateRange = (dateRange && (dateRange.from || dateRange.to)) ? dateRange : undefined;
     }
     
     const params = { ...config, ...filters };
@@ -220,23 +223,26 @@ export function JiraSidebarContent() {
                       variant={"outline"}
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !dateRange.from && !dateRange.to && "text-muted-foreground"
+                        (!dateRange || (!dateRange.from && !dateRange.to)) && "text-muted-foreground"
                       )}
                     >
                       <Icons.date className="mr-2 h-4 w-4" />
-                      {dateRange.from ? (
-                        dateRange.to ? (
-                          <>
-                            {format(dateRange.from, "LLL dd, y")} -{" "}
-                            {format(dateRange.to, "LLL dd, y")}
-                          </>
-                        ) : (
-                          format(dateRange.from, "LLL dd, y")
-                        )
-                      ) : dateRange.to ? (
+                      {dateRange ? (
+                        dateRange.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "LLL dd, y")} -{" "}
+                              {format(dateRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "LLL dd, y")
+                          )
+                        ) : dateRange.to ? (
                           `Until ${format(dateRange.to, "LLL dd, y")}`
-                      )
-                      : (
+                        ) : (
+                          <span>Pick a date range</span>
+                        )
+                      ) : (
                         <span>Pick a date range</span>
                       )}
                     </Button>
@@ -245,9 +251,9 @@ export function JiraSidebarContent() {
                     <Calendar
                       initialFocus
                       mode="range"
-                      defaultMonth={dateRange.from}
+                      defaultMonth={dateRange?.from}
                       selected={dateRange}
-                      onSelect={setDateRange}
+                      onSelect={setDateRange} // setDateRange can receive undefined from here
                       numberOfMonths={2}
                     />
                   </PopoverContent>
