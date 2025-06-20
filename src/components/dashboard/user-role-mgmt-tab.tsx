@@ -30,11 +30,13 @@ const LoadingSkeleton = () => (
   </div>
 );
 
+// PLACEHOLDER: Replace with actual custom field IDs from your Jira instance
+const ROLE_CUSTOM_FIELD = 'customfield_user_role'; 
+const DEPARTMENT_CUSTOM_FIELD = 'customfield_user_department';
+
 export function UserRoleMgmtTab() {
   const context = useContext(JiraDataContext);
   const [selectedUserFilter, setSelectedUserFilter] = useState('All');
-  // Role and Department filters would need actual custom field IDs.
-  // Using placeholders for now.
   const [selectedRole, setSelectedRole] = useState('All');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
 
@@ -53,16 +55,15 @@ export function UserRoleMgmtTab() {
     return ['All', ...Array.from(users).sort()];
   }, [issues]);
   
-  // Example for deriving filter options - replace 'customfield_user_role' with actual ID
   const uniqueRoles = useMemo(() => {
     if(!issues) return ['All'];
-    const roles = Array.from(new Set(issues.map(i => i.customfield_user_role).filter(Boolean) as string[]));
+    const roles = Array.from(new Set(issues.map(i => i[ROLE_CUSTOM_FIELD]).filter(Boolean) as string[]));
     return ['All', ...roles.sort()];
   }, [issues]);
 
   const uniqueDepartments = useMemo(() => {
     if(!issues) return ['All'];
-    const depts = Array.from(new Set(issues.map(i => i.customfield_user_department).filter(Boolean) as string[]));
+    const depts = Array.from(new Set(issues.map(i => i[DEPARTMENT_CUSTOM_FIELD]).filter(Boolean) as string[]));
     return ['All', ...depts.sort()];
   }, [issues]);
 
@@ -70,9 +71,11 @@ export function UserRoleMgmtTab() {
   const filteredIssues = useMemo(() => {
     if (!issues) return [];
     return issues.filter(issue => {
-      const userMatch = selectedUserFilter === 'All' || issue.assignee?.displayName === selectedUserFilter || issue.reporter?.displayName === selectedUserFilter;
-      const roleMatch = selectedRole === 'All' || issue.customfield_user_role === selectedRole;
-      const departmentMatch = selectedDepartment === 'All' || issue.customfield_user_department === selectedDepartment;
+      const userMatch = selectedUserFilter === 'All' || 
+                        issue.assignee?.displayName === selectedUserFilter || 
+                        issue.reporter?.displayName === selectedUserFilter;
+      const roleMatch = selectedRole === 'All' || issue[ROLE_CUSTOM_FIELD] === selectedRole;
+      const departmentMatch = selectedDepartment === 'All' || issue[DEPARTMENT_CUSTOM_FIELD] === selectedDepartment;
       return userMatch && roleMatch && departmentMatch;
     });
   }, [issues, selectedUserFilter, selectedRole, selectedDepartment]);
@@ -94,12 +97,14 @@ export function UserRoleMgmtTab() {
       acc[reporterName] = (acc[reporterName] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a,b)=>b.value - a.value);
   }, [filteredIssues]);
 
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
+
 
   return (
     <div className="space-y-6 p-1">
@@ -108,22 +113,22 @@ export function UserRoleMgmtTab() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="urm-user-filter">User (Assignee/Reporter)</Label>
-            <Select value={selectedUserFilter} onValueChange={setSelectedUserFilter}>
+            <Select value={selectedUserFilter} onValueChange={setSelectedUserFilter} disabled={uniqueUsers.length <=1}>
               <SelectTrigger id="urm-user-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueUsers.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label htmlFor="urm-role-filter">Role (Example Custom Field)</Label>
+            <Label htmlFor="urm-role-filter">Role (CF: {ROLE_CUSTOM_FIELD})</Label>
              <Select value={selectedRole} onValueChange={setSelectedRole} disabled={uniqueRoles.length <=1}>
-              <SelectTrigger id="urm-role-filter"><SelectValue placeholder="N/A if no 'customfield_user_role'"/></SelectTrigger>
+              <SelectTrigger id="urm-role-filter"><SelectValue placeholder="N/A if no data"/></SelectTrigger>
               <SelectContent>{uniqueRoles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label htmlFor="urm-dept-filter">Department (Example Custom Field)</Label>
+            <Label htmlFor="urm-dept-filter">Department (CF: {DEPARTMENT_CUSTOM_FIELD})</Label>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={uniqueDepartments.length <=1}>
-              <SelectTrigger id="urm-dept-filter"><SelectValue placeholder="N/A if no 'customfield_user_department'"/></SelectTrigger>
+              <SelectTrigger id="urm-dept-filter"><SelectValue placeholder="N/A if no data"/></SelectTrigger>
               <SelectContent>{uniqueDepartments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -139,16 +144,16 @@ export function UserRoleMgmtTab() {
           <CardContent>
             {issuesPerAssigneeData.length > 0 ? (
               <ChartContainer config={{ value: {label: "Issues", color: "hsl(var(--chart-1))"} }} className="h-[300px] w-full">
-                <BarChart data={issuesPerAssigneeData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={issuesPerAssigneeData} layout="vertical" margin={{ left: 20, right: 20, bottom: 20 }}>
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" dataKey="value" allowDecimals={false}/>
-                  <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false}/>
+                  <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} interval={0}/>
                   <Tooltip content={<ChartTooltipContent hideLabel />} />
                   <Legend content={<ChartLegendContent />} />
                   <Bar dataKey="value" name="Issues" fill="var(--color-value)" radius={4} />
                 </BarChart>
               </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for issues per assignee.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for issues per assignee with current filters.</p>}
           </CardContent>
         </Card>
 
@@ -178,12 +183,12 @@ export function UserRoleMgmtTab() {
                   <Legend content={<ChartLegendContent />} />
                 </RechartsPieChart>
               </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for issues by reporter.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for issues by reporter with current filters.</p>}
           </CardContent>
         </Card>
       </div>
       <CardDescription className="text-xs text-muted-foreground p-2">
-        Note: 'Role' and 'Department' filters depend on specific custom fields (e.g., `customfield_user_role`, `customfield_user_department`) being present in your Jira data.
+        Note: 'Role' and 'Department' filters depend on specific custom fields (e.g., `{ROLE_CUSTOM_FIELD}`, `{DEPARTMENT_CUSTOM_FIELD}`) being present and correctly identified in your Jira data and `jira-actions.ts`.
       </CardDescription>
     </div>
   );

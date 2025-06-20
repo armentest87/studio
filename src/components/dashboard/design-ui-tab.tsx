@@ -30,14 +30,14 @@ const LoadingSkeleton = () => (
   </div>
 );
 
-// Example custom field names (replace with actual IDs/names from your Jira)
-const DESIGN_OPTION_FIELD = 'customfield_design_option'; // Example ID
-const ICON_TYPE_FIELD = 'customfield_icon_type'; // Example ID
-const APPLICATION_FIELD = 'customfield_application_name'; // Example ID
+// PLACEHOLDER: Replace with actual custom field IDs from your Jira instance
+const DESIGN_OPTION_FIELD = 'customfield_design_option'; 
+const ICON_TYPE_FIELD = 'customfield_icon_type'; 
+const APPLICATION_FIELD = 'customfield_application_name'; 
 
 export function DesignUiTab() {
   const context = useContext(JiraDataContext);
-  const [selectedDesignType, setSelectedDesignType] = useState('All');
+  const [selectedDesignType, setSelectedDesignType] = useState('All'); // Corresponds to DESIGN_OPTION_FIELD
   const [selectedApplication, setSelectedApplication] = useState('All');
 
   if (!context) return <div className="p-4 text-red-500">Error: JiraDataContext not found.</div>;
@@ -89,6 +89,8 @@ export function DesignUiTab() {
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
+
 
   return (
     <div className="space-y-6 p-1">
@@ -96,14 +98,14 @@ export function DesignUiTab() {
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="dui-designtype-filter">Design Type (e.g., CF: {DESIGN_OPTION_FIELD})</Label>
+            <Label htmlFor="dui-designtype-filter">Design Type (CF: {DESIGN_OPTION_FIELD})</Label>
             <Select value={selectedDesignType} onValueChange={setSelectedDesignType} disabled={uniqueDesignTypes.length <=1}>
               <SelectTrigger id="dui-designtype-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueDesignTypes.map(dt => <SelectItem key={dt} value={dt}>{dt}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label htmlFor="dui-app-filter">Application (e.g., CF: {APPLICATION_FIELD})</Label>
+            <Label htmlFor="dui-app-filter">Application (CF: {APPLICATION_FIELD})</Label>
             <Select value={selectedApplication} onValueChange={setSelectedApplication} disabled={uniqueApplications.length <=1}>
               <SelectTrigger id="dui-app-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueApplications.map(app => <SelectItem key={app} value={app}>{app}</SelectItem>)}</SelectContent>
@@ -121,7 +123,7 @@ export function DesignUiTab() {
           <CardContent>
             {designOptionsData.length > 0 ? (
               <ChartContainer config={{}} className="h-[300px] w-full">
-                <RechartsPieChart> {/* Donut chart is a Pie chart with innerRadius */}
+                <RechartsPieChart> 
                   <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                   <Pie data={designOptionsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={60} labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                       const RADIAN = Math.PI / 180;
@@ -151,10 +153,10 @@ export function DesignUiTab() {
           <CardContent>
             {iconTypesData.length > 0 ? (
               <ChartContainer config={{ value: {label: "Count", color: "hsl(var(--chart-2))"} }} className="h-[300px] w-full">
-                <BarChart data={iconTypesData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={iconTypesData} layout="vertical" margin={{ left: 20, right: 20, bottom: 20 }}>
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" dataKey="value" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false}/>
+                  <YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false} interval={0}/>
                   <Tooltip content={<ChartTooltipContent hideLabel />} />
                   <Legend content={<ChartLegendContent />} />
                   <Bar dataKey="value" name="Count" fill="var(--color-value)" radius={4} />
@@ -165,7 +167,7 @@ export function DesignUiTab() {
         </Card>
       </div>
       <CardDescription className="text-xs text-muted-foreground p-2">
-        Note: This tab relies on example custom field names like '{DESIGN_OPTION_FIELD}', '{ICON_TYPE_FIELD}', and '{APPLICATION_FIELD}'. Please update these to your actual Jira custom field IDs/names.
+        Note: This tab relies on placeholder custom field IDs (e.g., '{DESIGN_OPTION_FIELD}', '{ICON_TYPE_FIELD}', '{APPLICATION_FIELD}'). Please update these to your actual Jira custom field IDs in this file, `jira-actions.ts`, and `types/jira.ts`.
       </CardDescription>
     </div>
   );

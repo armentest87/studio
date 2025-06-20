@@ -112,6 +112,8 @@ export function GeneralInfoTab() {
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched. Please use the sidebar.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
+
 
   return (
     <div className="space-y-6 p-1">
@@ -122,14 +124,14 @@ export function GeneralInfoTab() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="gi-project-filter">Project</Label>
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
+            <Select value={selectedProject} onValueChange={setSelectedProject} disabled={uniqueProjects.length <= 1}>
               <SelectTrigger id="gi-project-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueProjects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
             <Label htmlFor="gi-priority-filter">Priority</Label>
-            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+            <Select value={selectedPriority} onValueChange={setSelectedPriority} disabled={uniquePriorities.length <= 1}>
               <SelectTrigger id="gi-priority-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniquePriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
             </Select>
@@ -181,7 +183,7 @@ export function GeneralInfoTab() {
                   <Legend content={<ChartLegendContent />} />
                 </RechartsPieChart>
               </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for issue type distribution.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for issue type distribution with current filters.</p>}
           </CardContent>
         </Card>
 
@@ -205,7 +207,7 @@ export function GeneralInfoTab() {
                   <Bar dataKey="value" name="Issues" fill="var(--color-value)" radius={4} />
                 </BarChart>
               </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for status distribution.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for status distribution with current filters.</p>}
           </CardContent>
         </Card>
       </div>

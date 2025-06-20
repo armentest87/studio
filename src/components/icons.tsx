@@ -39,12 +39,12 @@ import {
   LineChart,
   Loader2,
   Bug,
-  Banknote, // New for Finance
-  Palette, // New for Design
-  Gamepad2, // New for Gaming
-  Briefcase, // New for HR
-  ShieldAlert, // New for Risk/Incident (alternative to AlertTriangle)
-  ListChecks, // Alternative for Task Management
+  Banknote, 
+  Palette, 
+  Gamepad2, 
+  Briefcase, 
+  ShieldAlert, 
+  ListChecks, 
 } from 'lucide-react';
 
 export const Icons = {
@@ -73,7 +73,7 @@ export const Icons = {
   userReport: FileText,
   // Icons for old dashboard tabs
   velocity: TrendingUp,
-  burndown: Target,
+  burndown: Target, // Also used for Time Tracking tab
   cycleTime: FileClock,
   throughput: Hourglass,
   sprintCommitment: ClipboardList,
@@ -82,11 +82,11 @@ export const Icons = {
   leadTime: Clock,
   workingHours: UserCheck,
   timeInStatus: Workflow,
-  assigneeWorkload: Package,
+  assigneeWorkload: Package, // Consider Users icon from lucide
   taskCompletion: CheckCircle2,
   bugTrends: Bug,
   cfd: AreaChart,
-  customFieldDist: PieChart, // This is different from `Icons.pieChart`
+  customFieldDist: PieChart, 
 
   // General utility icons
   checkCircle2: CheckCircle2,
@@ -100,16 +100,18 @@ export const Icons = {
   percent: Percent,
   lineChart: LineChart,
   loader: Loader2,
-  pieChart: PieChart, // Added mapping
-  barChart3: BarChart3, // Added mapping
-  ganttChartSquare: GanttChartSquare, // Added mapping
-  clipboardList: ClipboardList, // Added mapping
+  
+  // Explicitly mapping icons used in tabs
+  pieChart: PieChart, 
+  barChart3: BarChart3, 
+  ganttChartSquare: GanttChartSquare, 
+  clipboardList: ClipboardList,
 
   // New Tab Specific Icons
   generalInfo: GanttChartSquare, // Tab 1
   userRoleMgmt: Users, // Tab 2
   dateTimeInfo: CalendarDays, // Tab 3
-  timeTracking: FileClock, // Tab 4
+  timeTracking: FileClock, // Tab 4 (Shares icon with cycleTime)
   financePayments: Banknote, // Tab 5
   designUI: Palette, // Tab 6
   gamingSetup: Gamepad2, // Tab 7

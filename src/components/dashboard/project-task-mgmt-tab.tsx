@@ -13,7 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
-import { format, parseISO, isValid, differenceInBusinessDays } from 'date-fns';
+import { format, parseISO, isValid, differenceInBusinessDays, isAfter, isBefore } from 'date-fns';
 import { JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,19 +56,25 @@ export function ProjectTaskMgmtTab() {
       const projectMatch = selectedProject === 'All' || issue.project?.name === selectedProject;
       const taskTypeMatch = selectedTaskType === 'All' || issue.type?.name === selectedTaskType;
       let dateMatch = true; 
-      if (dateRange.from && issue.duedate && isValid(parseISO(issue.duedate))) {
-        dateMatch = dateMatch && parseISO(issue.duedate) >= dateRange.from;
-      }
-      if (dateRange.to && issue.duedate && isValid(parseISO(issue.duedate))) {
-        const toDate = new Date(dateRange.to); toDate.setDate(toDate.getDate() + 1);
-        dateMatch = dateMatch && parseISO(issue.duedate) < toDate;
+      if (issue.duedate && isValid(parseISO(issue.duedate))) {
+        const dueDate = parseISO(issue.duedate);
+        if (dateRange.from && isBefore(dueDate, dateRange.from)) {
+          dateMatch = false;
+        }
+        if (dateRange.to) {
+            const toDateInclusive = new Date(dateRange.to);
+            toDateInclusive.setHours(23,59,59,999);
+            if (isAfter(dueDate, toDateInclusive)) {
+                dateMatch = false;
+            }
+        }
+      } else if (dateRange.from || dateRange.to) {
+          dateMatch = false;
       }
       return projectMatch && taskTypeMatch && dateMatch;
     });
   }, [issues, selectedProject, selectedTaskType, dateRange]);
 
-  // Gantt chart: Simplified as horizontal bar chart
-  // X-axis: Time based on startdate and duedate. Y-axis: project.key or issuekey
   const projectTimelineData = useMemo(() => {
     if (!filteredIssues || filteredIssues.length === 0) return [];
     return filteredIssues
@@ -76,17 +82,16 @@ export function ProjectTaskMgmtTab() {
       .map(issue => {
         const startDate = parseISO(issue.startdate!);
         const dueDate = parseISO(issue.duedate!);
-        const duration = differenceInBusinessDays(dueDate, startDate) +1; // +1 to include start day
+        const duration = differenceInBusinessDays(dueDate, startDate) + 1; 
         return {
-          name: issue.summary.substring(0,30) + (issue.summary.length > 30 ? "..." : ""), // Shorten summary for Y-axis
+          name: `${issue.id} - ${issue.summary.substring(0,25)}${issue.summary.length > 25 ? "..." : ""}`,
           id: issue.id,
-          range: [startDate.getTime(), dueDate.getTime()], // For Recharts BarChart, need to calculate positions or use specialized Gantt lib
           startDate: format(startDate, 'yyyy-MM-dd'),
-          duration: Math.max(1, duration), // Ensure at least 1 day duration for visibility
+          duration: Math.max(1, duration), 
           project: issue.project?.name || "Unknown Project"
         };
       })
-      .slice(0, 15); // Limit for display
+      .slice(0, 15); // Limit for display to keep it readable
   }, [filteredIssues]);
 
   const taskCompletionProgressData = useMemo(() => {
@@ -96,20 +101,22 @@ export function ProjectTaskMgmtTab() {
       const projectName = issue.project?.name || 'Unknown Project';
       if(!projectsSummary[projectName]) projectsSummary[projectName] = {name: projectName, total: 0, completed: 0};
       projectsSummary[projectName].total++;
-      if(issue.status?.statusCategory?.key === 'done') {
+      if(issue.status?.statusCategory?.key === 'done' || issue.status?.name?.toLowerCase() === 'closed' || issue.status?.name?.toLowerCase() === 'resolved') {
         projectsSummary[projectName].completed++;
       }
     });
     return Object.values(projectsSummary).map(p => ({
         ...p,
         percentage: p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
-    }));
+    })).sort((a,b) => b.percentage - a.percentage);
   }, [filteredIssues]);
 
 
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
+
 
   return (
     <div className="space-y-6 p-1">
@@ -118,14 +125,14 @@ export function ProjectTaskMgmtTab() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="ptm-project-filter">Project</Label>
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
+            <Select value={selectedProject} onValueChange={setSelectedProject} disabled={uniqueProjects.length <=1}>
               <SelectTrigger id="ptm-project-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueProjects.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
             <Label htmlFor="ptm-tasktype-filter">Task Type</Label>
-            <Select value={selectedTaskType} onValueChange={setSelectedTaskType}>
+            <Select value={selectedTaskType} onValueChange={setSelectedTaskType} disabled={uniqueTaskTypes.length <=1}>
               <SelectTrigger id="ptm-tasktype-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueTaskTypes.map(tt => <SelectItem key={tt} value={tt}>{tt}</SelectItem>)}</SelectContent>
             </Select>
@@ -148,21 +155,21 @@ export function ProjectTaskMgmtTab() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2"><Icons.ganttChartSquare className="h-5 w-5 text-primary" /><CardTitle>Project Timeline (Simplified Gantt)</CardTitle></div>
-          <CardDescription>Visualizes project schedules. (Shows task duration from start to due date)</CardDescription>
+          <CardDescription>Visualizes task durations (start to due date). Shows top 15 tasks matching filters.</CardDescription>
         </CardHeader>
         <CardContent>
           {projectTimelineData.length > 0 ? (
             <ChartContainer config={{ duration: {label: "Duration (days)", color: "hsl(var(--chart-1))"} }} className="h-[400px] w-full">
-              <BarChart data={projectTimelineData} layout="vertical" margin={{ left: 100, right: 20 }}>
+              <BarChart data={projectTimelineData} layout="vertical" margin={{ left: 150, right: 20, bottom:20 }}>
                 <CartesianGrid horizontal={false} />
                 <XAxis type="number" dataKey="duration" name="Duration (days)" allowDecimals={false} />
-                <YAxis type="category" dataKey="name" width={150} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="name" width={150} tickLine={false} axisLine={false} interval={0}/>
                 <Tooltip content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
                         <div className="rounded-lg border bg-background p-2 shadow-sm">
-                            <p className="text-sm font-medium">{data.id} - {data.name}</p>
+                            <p className="text-sm font-medium">{data.id}</p>
                             <p className="text-xs text-muted-foreground">Project: {data.project}</p>
                             <p className="text-xs text-muted-foreground">Start: {data.startDate}</p>
                             <p className="text-xs text-muted-foreground">Duration: {data.duration} days</p>
@@ -181,7 +188,7 @@ export function ProjectTaskMgmtTab() {
 
       <Card>
         <CardHeader>
-            <div className="flex items-center gap-2"><Icons.clipboardList className="h-5 w-5 text-primary" /><CardTitle>Task Completion Progress</CardTitle></div>
+            <div className="flex items-center gap-2"><Icons.clipboardList className="h-5 w-5 text-primary" /><CardTitle>Task Completion Progress by Project</CardTitle></div>
             <CardDescription>Percentage of tasks completed per project.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -197,7 +204,7 @@ export function ProjectTaskMgmtTab() {
         </CardContent>
       </Card>
       <CardDescription className="text-xs text-muted-foreground p-2">
-        Note: Gantt chart is a simplified representation. For full Gantt features, a specialized library might be needed. Ensure 'startdate' and 'duedate' fields are available in Jira issues.
+        Note: Gantt chart is a simplified representation of task durations. Ensure 'startdate' and 'duedate' fields are available in Jira issues.
       </CardDescription>
     </div>
   );

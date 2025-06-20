@@ -157,6 +157,7 @@ export interface JiraIssue {
   customfield_16160?: JiraUser[] | null; // Evaluation Committee (Tab 11) - Assuming array of users
 
   // Placeholder for named custom fields (types are examples)
+  // Ensure these IDs are updated to your actual Jira custom field IDs
   customfield_user_role?: string | null; // Example for Role (Tab 2)
   customfield_user_department?: string | null; // Example for Department (Tab 2, 8)
   customfield_design_option?: string | null; // Example for Design Option (Tab 6)

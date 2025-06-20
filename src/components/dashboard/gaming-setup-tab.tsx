@@ -31,9 +31,9 @@ const LoadingSkeleton = () => (
 );
 
 // Custom field ID from doc: customfield_12804 (Number of Tables)
-// Named custom fields: Location, Game Type
-const LOCATION_FIELD = 'customfield_physical_location'; // Example ID
-const GAME_TYPE_FIELD = 'customfield_game_type'; // Example ID
+// Named custom fields (PLACEHOLDERS - replace with actual IDs):
+const LOCATION_FIELD = 'customfield_physical_location'; 
+const GAME_TYPE_FIELD = 'customfield_game_type'; 
 const NUM_TABLES_FIELD = 'customfield_12804';
 
 export function GamingSetupTab() {
@@ -69,9 +69,6 @@ export function GamingSetupTab() {
     if (!filteredIssues || filteredIssues.length === 0) return [];
     const summary = filteredIssues.reduce((acc, issue) => {
       const location = issue[LOCATION_FIELD] || 'Unknown Location';
-      // Assuming customfield_12804 holds the number of tables for *that specific issue/record*
-      // If it's a sum per location, the data structure in Jira might be different.
-      // This sums up customfield_12804 if multiple issues share a location.
       const numTables = typeof issue[NUM_TABLES_FIELD] === 'number' ? issue[NUM_TABLES_FIELD] : 0;
       acc[location] = (acc[location] || 0) + numTables;
       return acc;
@@ -92,6 +89,8 @@ export function GamingSetupTab() {
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
+
 
   return (
     <div className="space-y-6 p-1">
@@ -99,14 +98,14 @@ export function GamingSetupTab() {
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="gs-location-filter">Location (e.g., CF: {LOCATION_FIELD})</Label>
+            <Label htmlFor="gs-location-filter">Location (CF: {LOCATION_FIELD})</Label>
             <Select value={selectedLocation} onValueChange={setSelectedLocation} disabled={uniqueLocations.length <=1}>
               <SelectTrigger id="gs-location-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div>
-            <Label htmlFor="gs-gametype-filter">Game Type (e.g., CF: {GAME_TYPE_FIELD})</Label>
+            <Label htmlFor="gs-gametype-filter">Game Type (CF: {GAME_TYPE_FIELD})</Label>
             <Select value={selectedGameType} onValueChange={setSelectedGameType} disabled={uniqueGameTypes.length <=1}>
               <SelectTrigger id="gs-gametype-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueGameTypes.map(gt => <SelectItem key={gt} value={gt}>{gt}</SelectItem>)}</SelectContent>
@@ -119,15 +118,15 @@ export function GamingSetupTab() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2"><Icons.barChart3 className="h-5 w-5 text-primary" /><CardTitle>Tables per Location</CardTitle></div>
-            <CardDescription>Tracks table distribution (uses CF {NUM_TABLES_FIELD}).</CardDescription>
+            <CardDescription>Tracks table distribution (uses CF: {NUM_TABLES_FIELD}).</CardDescription>
           </CardHeader>
           <CardContent>
             {tablesPerLocationData.length > 0 ? (
               <ChartContainer config={{ value: {label: "Tables", color: "hsl(var(--chart-1))"} }} className="h-[300px] w-full">
-                <BarChart data={tablesPerLocationData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <BarChart data={tablesPerLocationData} layout="vertical" margin={{ left: 20, right: 20, bottom: 20 }}>
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" dataKey="value" allowDecimals={false}/>
-                  <YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false}/>
+                  <YAxis type="category" dataKey="name" width={100} tickLine={false} axisLine={false} interval={0}/>
                   <Tooltip content={<ChartTooltipContent hideLabel />} />
                   <Legend content={<ChartLegendContent />} />
                   <Bar dataKey="value" name="Tables" fill="var(--color-value)" radius={4} />
@@ -168,7 +167,7 @@ export function GamingSetupTab() {
         </Card>
       </div>
       <CardDescription className="text-xs text-muted-foreground p-2">
-        Note: This tab relies on specific custom fields like '{NUM_TABLES_FIELD}' and example names like '{LOCATION_FIELD}', '{GAME_TYPE_FIELD}'. Please update these to your actual Jira custom field IDs/names.
+        Note: This tab relies on specific custom fields like '{NUM_TABLES_FIELD}' and placeholder IDs for '{LOCATION_FIELD}', '{GAME_TYPE_FIELD}'. Please update these to your actual Jira custom field IDs.
       </CardDescription>
     </div>
   );

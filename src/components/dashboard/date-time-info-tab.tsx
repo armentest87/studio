@@ -12,7 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
-import { format, parseISO, isValid, differenceInDays, startOfWeek, eachWeekOfInterval, endOfWeek } from 'date-fns';
+import { format, parseISO, isValid, differenceInDays, startOfWeek, eachWeekOfInterval, endOfWeek, isAfter, isBefore, isEqual } from 'date-fns';
 import { JiraDataContext } from '@/context/JiraDataContext';
 import type { JiraIssue } from '@/types/jira';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,13 +48,21 @@ export function DateTimeInfoTab() {
     if (!issues) return [];
     return issues.filter(issue => {
       const typeMatch = selectedIssueType === 'All' || issue.type?.name === selectedIssueType;
-      let dateMatch = true; // Apply date range to created date for consistency
-      if (dateRange.from && issue.created && isValid(parseISO(issue.created))) {
-        dateMatch = dateMatch && parseISO(issue.created) >= dateRange.from;
-      }
-      if (dateRange.to && issue.created && isValid(parseISO(issue.created))) {
-        const toDate = new Date(dateRange.to); toDate.setDate(toDate.getDate() + 1);
-        dateMatch = dateMatch && parseISO(issue.created) < toDate;
+      let dateMatch = true;
+      if (issue.created && isValid(parseISO(issue.created))) {
+        const createdDate = parseISO(issue.created);
+        if (dateRange.from && isBefore(createdDate, dateRange.from)) {
+          dateMatch = false;
+        }
+        if (dateRange.to) {
+            const toDateInclusive = new Date(dateRange.to);
+            toDateInclusive.setHours(23,59,59,999); // make 'to' date inclusive of the whole day
+            if (isAfter(createdDate, toDateInclusive)) {
+                 dateMatch = false;
+            }
+        }
+      } else if (dateRange.from || dateRange.to) { // if date filters are set but issue has no valid created date
+          dateMatch = false;
       }
       return typeMatch && dateMatch;
     });
@@ -67,7 +75,12 @@ export function DateTimeInfoTab() {
 
     const dates = validIssues.map(i => parseISO(i.created!));
     const minDate = dates.reduce((min, d) => d < min ? d : min);
-    const maxDate = dates.reduce((max, d) => d > max ? d : max);
+    let maxDate = dates.reduce((max, d) => d > max ? d : max);
+    
+    // If only one date, make maxDate same as minDate for interval calculation
+    if (isValid(minDate) && isValid(maxDate) && isEqual(minDate, maxDate)) {
+        maxDate = endOfWeek(minDate, { weekStartsOn: 1 }); // Ensure at least one week interval
+    }
     
     if (!isValid(minDate) || !isValid(maxDate) || minDate > maxDate) return [];
 
@@ -98,13 +111,14 @@ export function DateTimeInfoTab() {
       else if (days <= 30) timeBuckets["15-30d"]++;
       else timeBuckets[">30d"]++;
     });
-    return Object.entries(timeBuckets).map(([name, value]) => ({ name, value }));
+    return Object.entries(timeBuckets).map(([name, value]) => ({ name, value })).filter(d => d.value > 0);
   }, [filteredIssues]);
 
 
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) return <div className="p-4 text-center text-muted-foreground">No issues match the current filter criteria.</div>;
 
   return (
     <div className="space-y-6 p-1">
@@ -125,7 +139,7 @@ export function DateTimeInfoTab() {
           </div>
           <div>
             <Label htmlFor="dti-issuetype-filter">Issue Type</Label>
-            <Select value={selectedIssueType} onValueChange={setSelectedIssueType}>
+            <Select value={selectedIssueType} onValueChange={setSelectedIssueType} disabled={uniqueIssueTypes.length <=1}>
               <SelectTrigger id="dti-issuetype-filter"><SelectValue /></SelectTrigger>
               <SelectContent>{uniqueIssueTypes.map(it => <SelectItem key={it} value={it}>{it}</SelectItem>)}</SelectContent>
             </Select>
@@ -133,7 +147,7 @@ export function DateTimeInfoTab() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-1"> {/* Changed to 1 col for better focus on line chart */}
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2"> 
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2"><Icons.lineChart className="h-5 w-5 text-primary" /><CardTitle>Issues Created Over Time</CardTitle></div>
@@ -148,10 +162,10 @@ export function DateTimeInfoTab() {
                   <YAxis dataKey="count" allowDecimals={false} tickLine={false} axisLine={false} tickMargin={8}/>
                   <Tooltip content={<ChartTooltipContent indicator="line" hideLabel />} />
                   <Legend content={<ChartLegendContent />} />
-                  <Line type="monotone" dataKey="count" stroke="var(--color-count)" strokeWidth={2} dot={false} name="Issues Created"/>
+                  <Line type="monotone" dataKey="count" stroke="var(--color-count)" strokeWidth={2} dot={true} name="Issues Created"/>
                 </LineChart>
               </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for issues created over time.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for issues created over time with current filters.</p>}
           </CardContent>
         </Card>
         
@@ -172,7 +186,7 @@ export function DateTimeInfoTab() {
                    <Bar dataKey="value" name="Issues Resolved" fill="var(--color-value)" radius={4} />
                  </BarChart>
                </ChartContainer>
-            ) : <p className="text-sm text-muted-foreground">No data for resolution time histogram.</p>}
+            ) : <p className="text-sm text-muted-foreground">No data for resolution time histogram with current filters (requires issues with resolution dates).</p>}
           </CardContent>
         </Card>
       </div>

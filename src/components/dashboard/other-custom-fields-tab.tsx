@@ -23,11 +23,9 @@ const LoadingSkeleton = () => (
   </Card>
 );
 
-// Custom fields mentioned for Tab 11:
-// customfield_10500 (Request Participants) - JiraUser[]
-// customfield_16160 (Evaluation Committee) - JiraUser[]
-// This tab will display these fields along with issue ID and summary.
-// Filters will be simple text search for now.
+// Custom fields from spec:
+const REQUEST_PARTICIPANTS_FIELD = 'customfield_10500';
+const EVALUATION_COMMITTEE_FIELD = 'customfield_16160';
 
 const MAX_DISPLAY_ROWS = 25;
 
@@ -43,12 +41,16 @@ export function OtherCustomFieldsTab() {
     if (!issues) return [];
     const lowerSearchTerm = searchTerm.toLowerCase();
     return issues.filter(issue => {
+      // Only include issues that have at least one of the target custom fields populated
+      const hasTargetCustomFields = issue[REQUEST_PARTICIPANTS_FIELD] || issue[EVALUATION_COMMITTEE_FIELD];
+      if (!hasTargetCustomFields) return false;
+
       if (!searchTerm) return true;
-      const participants = (issue.customfield_10500 as JiraUser[] | null)?.map(u => u.displayName?.toLowerCase()).join(' ') || '';
-      const committee = (issue.customfield_16160 as JiraUser[] | null)?.map(u => u.displayName?.toLowerCase()).join(' ') || '';
+      const participants = (issue[REQUEST_PARTICIPANTS_FIELD] as JiraUser[] | null)?.map(u => u.displayName?.toLowerCase()).join(' ') || '';
+      const committee = (issue[EVALUATION_COMMITTEE_FIELD] as JiraUser[] | null)?.map(u => u.displayName?.toLowerCase()).join(' ') || '';
       return (
         issue.id.toLowerCase().includes(lowerSearchTerm) ||
-        issue.summary?.toLowerCase().includes(lowerSearchTerm) ||
+        (issue.summary && issue.summary.toLowerCase().includes(lowerSearchTerm)) ||
         participants.includes(lowerSearchTerm) ||
         committee.includes(lowerSearchTerm)
       );
@@ -66,10 +68,16 @@ export function OtherCustomFieldsTab() {
   if (isLoading) return <LoadingSkeleton />;
   if (error) return <Alert variant="destructive" className="m-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   if (!issues || issues.length === 0) return <div className="p-4 text-center text-muted-foreground">No Jira issues fetched.</div>;
+  if (filteredIssues.length === 0 && issues.length > 0) {
+      if(searchTerm) return <div className="p-4 text-center text-muted-foreground">No issues match the current search for the specified custom fields.</div>;
+      return <div className="p-4 text-center text-muted-foreground">No issues found with data for Request Participants (CF: {REQUEST_PARTICIPANTS_FIELD}) or Evaluation Committee (CF: {EVALUATION_COMMITTEE_FIELD}).</div>;
+  }
+  if (filteredIssues.length === 0 && !searchTerm) return <div className="p-4 text-center text-muted-foreground">No issues found with data for Request Participants (CF: {REQUEST_PARTICIPANTS_FIELD}) or Evaluation Committee (CF: {EVALUATION_COMMITTEE_FIELD}).</div>;
+
 
   const formatUserArray = (users?: JiraUser[] | null) => {
     if (!users || users.length === 0) return 'N/A';
-    return users.map(u => u.displayName || u.accountId || 'Unknown').join(', ');
+    return users.map(u => u.displayName || u.accountId || 'Unknown User').join(', ');
   };
 
   return (
@@ -77,7 +85,7 @@ export function OtherCustomFieldsTab() {
       <Card>
         <CardHeader>
             <div className="flex items-center gap-2"><Icons.table className="h-5 w-5 text-primary" /><CardTitle>Other Custom Fields View</CardTitle></div>
-            <CardDescription>Displays raw data for selected custom fields in a tabular format.</CardDescription>
+            <CardDescription>Displays issues with data for Request Participants (CF: {REQUEST_PARTICIPANTS_FIELD}) or Evaluation Committee (CF: {EVALUATION_COMMITTEE_FIELD}).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 mb-4">
@@ -93,10 +101,10 @@ export function OtherCustomFieldsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Issue ID</TableHead>
+                  <TableHead className="w-[100px]">Issue ID</TableHead>
                   <TableHead>Summary</TableHead>
-                  <TableHead>Request Participants (CF 10500)</TableHead>
-                  <TableHead>Evaluation Committee (CF 16160)</TableHead>
+                  <TableHead>Request Participants (CF: {REQUEST_PARTICIPANTS_FIELD})</TableHead>
+                  <TableHead>Evaluation Committee (CF: {EVALUATION_COMMITTEE_FIELD})</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -104,8 +112,8 @@ export function OtherCustomFieldsTab() {
                   <TableRow key={issue.id}>
                     <TableCell className="font-medium">{issue.id}</TableCell>
                     <TableCell>{issue.summary}</TableCell>
-                    <TableCell>{formatUserArray(issue.customfield_10500 as JiraUser[] | null)}</TableCell>
-                    <TableCell>{formatUserArray(issue.customfield_16160 as JiraUser[] | null)}</TableCell>
+                    <TableCell>{formatUserArray(issue[REQUEST_PARTICIPANTS_FIELD] as JiraUser[] | null)}</TableCell>
+                    <TableCell>{formatUserArray(issue[EVALUATION_COMMITTEE_FIELD] as JiraUser[] | null)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={4} className="h-24 text-center">No results found.</TableCell></TableRow>
@@ -139,7 +147,7 @@ export function OtherCustomFieldsTab() {
         </CardContent>
       </Card>
       <CardDescription className="text-xs text-muted-foreground p-2">
-        Note: This tab displays example custom fields 'customfield_10500' (Request Participants) and 'customfield_16160' (Evaluation Committee). Ensure these are relevant and fetched for your Jira instance. More sophisticated column-specific filters can be added.
+        Note: This tab specifically looks for data in custom fields '{REQUEST_PARTICIPANTS_FIELD}' and '{EVALUATION_COMMITTEE_FIELD}'. Ensure these IDs are correct for your Jira instance.
       </CardDescription>
     </div>
   );

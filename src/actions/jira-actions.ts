@@ -89,39 +89,42 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
   const authHeader = `Basic ${typeof Buffer !== 'undefined' ? Buffer.from(authString).toString('base64') : btoa(authString)}`;
   
   // Comprehensive list of fields based on old app and potential needs
+  // Updated to include all fields mentioned in the 11-tab specification.
   const fieldsToRequest = [
     "summary", "description", "status", "issuetype", "project", "assignee", "reporter",
     "priority", "labels", "components", "created", "updated", "resolutiondate", "duedate", "startdate",
     "timeoriginalestimate", "timespent", "timeestimate",
     "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
     "worklog", "parent", "environment", "versions", "fixVersions",
-    "customfield_10007", // Sprint field
-    "customfield_12326", // Story Points field
-    // New custom fields based on the document
-    "customfield_12929", // Cost Centers
-    "customfield_12606", // Amount
-    "customfield_12608", // Payment Type
-    "customfield_12905", // Payment Due Date
-    "customfield_12902", // Payer Company
-    "customfield_12804", // Number of Tables
-    "customfield_10500", // Request Participants
-    "customfield_16160", // Evaluation Committee
-    // Add placeholders for named custom fields that might be used
-    // These actual IDs would need to be configured for a specific Jira instance
-    "customfield_user_role", 
-    "customfield_user_department",
-    "customfield_design_option",
-    "customfield_icon_type",
-    "customfield_application_name",
-    "customfield_physical_location",
-    "customfield_game_type",
-    "customfield_employee_category",
-    "customfield_employee_position",
-    "customfield_employee_salary",
-    "customfield_risk_likelihood",
-    "customfield_risk_impact",
-    "customfield_incident_severity",
-    "customfield_incident_type",
+    "customfield_10007", // Sprint field (standard)
+    "customfield_12326", // Story Points field (standard example)
+    
+    // Fields from 11-tab spec
+    "customfield_12929", // Cost Centers (Tab 5)
+    "customfield_12606", // Amount (Tab 5)
+    "customfield_12608", // Payment Type (Tab 5)
+    "customfield_12905", // Payment Due Date (Tab 5)
+    "customfield_12902", // Payer Company (Tab 5)
+    "customfield_12804", // Number of Tables (Tab 7)
+    "customfield_10500", // Request Participants (Tab 11)
+    "customfield_16160", // Evaluation Committee (Tab 11)
+
+    // Placeholder IDs for named custom fields (These MUST be updated by the user)
+    "customfield_user_role",        // For Tab 2: User Role
+    "customfield_user_department",  // For Tab 2 & 8: Department
+    "customfield_design_option",    // For Tab 6: Design Option
+    "customfield_icon_type",        // For Tab 6: Icon Type
+    "customfield_application_name", // For Tab 6: Application Name
+    "customfield_physical_location",// For Tab 7: Physical Location
+    "customfield_game_type",        // For Tab 7: Game Type
+    "customfield_employee_category",// For Tab 8: Employee Category
+    "customfield_employee_position",// For Tab 8: Employee Position
+    "customfield_employee_salary",  // For Tab 8: Employee Salary
+    "customfield_risk_likelihood",  // For Tab 10: Risk Likelihood
+    "customfield_risk_impact",      // For Tab 10: Risk Impact
+    "customfield_incident_severity",// For Tab 10: Incident Severity
+    "customfield_incident_type",    // For Tab 10: Incident Type
+    // Note: 'startdate' for Gantt is already included in standard fields
   ];
 
   let allIssuesRaw: any[] = [];
@@ -233,7 +236,7 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         updated: issueData.fields.updated,
         resolutiondate: issueData.fields.resolutiondate,
         duedate: issueData.fields.duedate,
-        startdate: issueData.fields.startdate, // For Gantt
+        startdate: issueData.fields.startdate, 
         environment: issueData.fields.environment,
         versions: issueData.fields.versions || [],
         fixVersions: issueData.fields.fixVersions || [],
@@ -261,9 +264,11 @@ export async function fetchJiraIssues(params: JiraConfig & JiraFilters): Promise
         changelog: issueData.changelog,
       };
 
-      // Dynamically add all custom fields from fieldsToRequest that are present
+      // Dynamically add all requested custom fields that are present
       fieldsToRequest.forEach(fieldKey => {
         if (fieldKey.startsWith('customfield_') && issueData.fields[fieldKey] !== undefined) {
+          // Special handling for user arrays if needed (e.g. customfield_10500, customfield_16160)
+          // For now, it directly assigns the value. If it's an array of user objects, it will be assigned as such.
           mappedIssue[fieldKey] = issueData.fields[fieldKey];
         }
       });
