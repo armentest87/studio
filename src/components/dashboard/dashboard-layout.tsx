@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useContext, useMemo, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import {
   Sidebar,
   SidebarInset,
@@ -28,61 +28,18 @@ import type { JiraIssue } from '@/types/jira';
 type TabConfig = {
   value: string;
   label: string;
-  Icon: React.ElementType; // Lucide icon
-  Component: React.ComponentType<any>; // React component for the tab content
-  isDataSufficient: (issues: JiraIssue[] | null | undefined) => boolean;
+  Icon: React.ElementType;
+  Component: React.ComponentType<any>;
 };
 
 const ALL_TABS_CONFIG: TabConfig[] = [
-  {
-    value: "overview",
-    label: "Overview",
-    Icon: Icons.overview,
-    Component: OverviewTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "agile",
-    label: "Agile Metrics",
-    Icon: Icons.agile,
-    Component: AgileMetricsTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "team",
-    label: "Team Workload",
-    Icon: Icons.team,
-    Component: TeamWorkloadTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "quality",
-    label: "Quality Analysis",
-    Icon: Icons.bugTrends,
-    Component: QualityAnalysisTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "custom",
-    label: "Custom Analysis",
-    Icon: Icons.custom,
-    Component: CustomAnalysisTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "advanced",
-    label: "Advanced Metrics",
-    Icon: Icons.advanced,
-    Component: AdvancedMetricsTab,
-    isDataSufficient: () => true
-  },
-  {
-    value: "userReport",
-    label: "User Workload",
-    Icon: Icons.userReport,
-    Component: UserWorkloadReportTab,
-    isDataSufficient: () => true
-  }
+  { value: "overview", label: "Overview", Icon: Icons.overview, Component: OverviewTab },
+  { value: "agile", label: "Agile Metrics", Icon: Icons.agile, Component: AgileMetricsTab },
+  { value: "team", label: "Team Workload", Icon: Icons.team, Component: TeamWorkloadTab },
+  { value: "quality", label: "Quality Analysis", Icon: Icons.bugTrends, Component: QualityAnalysisTab },
+  { value: "custom", label: "Custom Analysis", Icon: Icons.custom, Component: CustomAnalysisTab },
+  { value: "advanced", label: "Advanced Metrics", Icon: Icons.advanced, Component: AdvancedMetricsTab },
+  { value: "userReport", label: "User Workload", Icon: Icons.userReport, Component: UserWorkloadReportTab }
 ];
 
 function DashboardContent() {
@@ -104,40 +61,9 @@ function DashboardContent() {
     );
   }
 
-  const { issues, isLoading, error } = context;
-  const [activeTab, setActiveTab] = useState<string>(ALL_TABS_CONFIG[0].value);
-
-  const availableTabs = useMemo<TabConfig[]>(() => {
-    if (isLoading && (!issues || issues.length === 0)) {
-      return [ALL_TABS_CONFIG[0]];
-    }
-    if (!issues || issues.length === 0) {
-      return [ALL_TABS_CONFIG[0]];
-    }
-    // Since isDataSufficient is always true for now, all tabs are available.
-    const dataSufficientTabs = ALL_TABS_CONFIG;
-    if (dataSufficientTabs.length > 0) {
-      return dataSufficientTabs;
-    }
-    return [ALL_TABS_CONFIG[0]]; // Default fallback
-  }, [issues, isLoading]);
-
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.find((tab: TabConfig) => tab.value === activeTab)) {
-      setActiveTab(availableTabs[0].value);
-    }
-  }, [availableTabs, activeTab]);
-
-  const currentTabConfig = useMemo<TabConfig>(() => {
-    const foundTab = availableTabs.find((tab: TabConfig) => tab.value === activeTab);
-    if (foundTab) {
-      return foundTab;
-    }
-    if (availableTabs.length > 0) {
-      return availableTabs[0];
-    }
-    return ALL_TABS_CONFIG[0]; // Ultimate fallback
-  }, [activeTab, availableTabs]);
+  // Simplified tab logic for debugging: always use the first tab.
+  const currentDisplayTabConfig = ALL_TABS_CONFIG[0];
+  const activeTabDisplayValue = currentDisplayTabConfig.value;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -149,69 +75,61 @@ function DashboardContent() {
           <SidebarTrigger className="md:hidden" />
           <div className="flex-1">
             <h1 className="text-lg font-semibold font-headline">
-              {currentTabConfig.label}
+              {currentDisplayTabConfig.label}
             </h1>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          {isLoading && (!issues || issues.length === 0) ? (
+          {context.isLoading && (!context.issues || context.issues.length === 0) ? (
             <div className="flex justify-center items-center h-full">
               <Icons.loader className="h-10 w-10 animate-spin text-primary" />
               <p className="ml-2 text-muted-foreground">Fetching Jira data...</p>
             </div>
-          ) : error ? (
+          ) : context.error ? (
             <div className="p-4 mt-4 text-center text-destructive bg-destructive/10 border border-destructive/30 rounded-md">
                 <p className="font-semibold">Error Fetching Data</p>
-                <p className="text-sm">{error}</p>
+                <p className="text-sm">{context.error}</p>
             </div>
-          ) : (!issues || issues.length === 0) && !isLoading ? (
-             <Tabs value={ALL_TABS_CONFIG[0].value} className="w-full">
+          ) : (!context.issues || context.issues.length === 0) && !context.isLoading ? (
+             <Tabs value={activeTabDisplayValue} className="w-full">
                <ScrollArea className="w-full whitespace-nowrap border-b">
                  <TabsList className="mb-0 inline-flex h-auto rounded-none border-0 bg-transparent p-0">
                     <TabsTrigger
-                      key={ALL_TABS_CONFIG[0].value}
-                      value={ALL_TABS_CONFIG[0].value}
+                      key={currentDisplayTabConfig.value}
+                      value={currentDisplayTabConfig.value}
                       className="flex-shrink-0 h-10 px-3 py-2 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
                     >
-                      <ALL_TABS_CONFIG[0].Icon className={`mr-2 h-4 w-4 ${sidebarState === 'collapsed' ? 'md:mr-0' : 'md:mr-2'}`} />
-                      <span className={`${sidebarState === 'collapsed' ? 'md:hidden' : ''}`}>{ALL_TABS_CONFIG[0].label}</span>
+                      <currentDisplayTabConfig.Icon className={`mr-2 h-4 w-4 ${sidebarState === 'collapsed' ? 'md:mr-0' : 'md:mr-2'}`} />
+                      <span className={`${sidebarState === 'collapsed' ? 'md:hidden' : ''}`}>{currentDisplayTabConfig.label}</span>
                     </TabsTrigger>
                  </TabsList>
                </ScrollArea>
-              <TabsContent value={ALL_TABS_CONFIG[0].value} className="mt-4">
-                 <OverviewTab />
+              <TabsContent value={activeTabDisplayValue} className="mt-4">
+                 <currentDisplayTabConfig.Component />
               </TabsContent>
                <div className="p-4 mt-4 text-center text-muted-foreground">
                  No Jira issues found. Please fetch issues using the sidebar, or adjust filters.
                </div>
             </Tabs>
           ) : (
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs value={activeTabDisplayValue} className="w-full">
               <ScrollArea className="w-full whitespace-nowrap border-b">
                 <TabsList className="mb-0 inline-flex h-auto rounded-none border-0 bg-transparent p-0">
-                  {availableTabs.map((tab: TabConfig) => (
+                  {/* Render only the currentDisplayTabConfig for simplicity */}
                     <TabsTrigger
-                      key={tab.value}
-                      value={tab.value}
+                      key={currentDisplayTabConfig.value}
+                      value={currentDisplayTabConfig.value}
                       className="flex-shrink-0 h-10 px-3 py-2 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
                     >
-                      <tab.Icon className={`mr-2 h-4 w-4 ${sidebarState === 'collapsed' ? 'md:mr-0' : 'md:mr-2'}`} />
-                      <span className={`${sidebarState === 'collapsed' ? 'md:hidden' : ''}`}>{tab.label}</span>
+                      <currentDisplayTabConfig.Icon className={`mr-2 h-4 w-4 ${sidebarState === 'collapsed' ? 'md:mr-0' : 'md:mr-2'}`} />
+                      <span className={`${sidebarState === 'collapsed' ? 'md:hidden' : ''}`}>{currentDisplayTabConfig.label}</span>
                     </TabsTrigger>
-                  ))}
                 </TabsList>
               </ScrollArea>
-
-              {currentTabConfig && currentTabConfig.Component && (
-                 <TabsContent value={currentTabConfig.value} className="mt-4">
-                   <currentTabConfig.Component />
+              {currentDisplayTabConfig && currentDisplayTabConfig.Component && (
+                 <TabsContent value={activeTabDisplayValue} className="mt-4">
+                   <currentDisplayTabConfig.Component />
                  </TabsContent>
-              )}
-
-              {availableTabs.length === 1 && availableTabs[0].value === "overview" && !isLoading && issues && issues.length > 0 && (
-                 <div className="p-4 mt-4 text-center text-muted-foreground">
-                    The fetched data is insufficient for other specific metric tabs. Displaying Overview.
-                 </div>
               )}
             </Tabs>
           )}
